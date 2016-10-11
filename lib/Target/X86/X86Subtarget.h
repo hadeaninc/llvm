@@ -471,6 +471,7 @@ public:
   bool isTargetCOFF() const { return TargetTriple.isOSBinFormatCOFF(); }
   bool isTargetMachO() const { return TargetTriple.isOSBinFormatMachO(); }
 
+  bool isTargetHadean() const { return TargetTriple.isOSHadean(); } // @HADEAN@
   bool isTargetLinux() const { return TargetTriple.isOSLinux(); }
   bool isTargetKFreeBSD() const { return TargetTriple.isOSKFreeBSD(); }
   bool isTargetGlibc() const { return TargetTriple.isOSGlibc(); }

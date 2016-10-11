@@ -146,6 +146,7 @@ public:
     DragonFly,
     FreeBSD,
     Fuchsia,
+    Hadean,     // @HADEAN@
     IOS,
     KFreeBSD,
     Linux,
@@ -548,6 +549,11 @@ public:
   /// Tests whether the OS is Linux.
   bool isOSLinux() const {
     return getOS() == Triple::Linux;
+  }
+
+  // @HADEAN@
+  bool isOSHadean() const {
+    return getOS() == Triple::Hadean;
   }
 
   /// Tests whether the OS is kFreeBSD.

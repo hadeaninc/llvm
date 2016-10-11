@@ -172,6 +172,7 @@ const char *Triple::getOSTypeName(OSType Kind) {
   case DragonFly: return "dragonfly";
   case FreeBSD: return "freebsd";
   case Fuchsia: return "fuchsia";
+  case Hadean: return "hadean"; // @HADEAN@
   case IOS: return "ios";
   case KFreeBSD: return "kfreebsd";
   case Linux: return "linux";
@@ -444,7 +445,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("darwin", Triple::Darwin)
     .StartsWith("dragonfly", Triple::DragonFly)
     .StartsWith("freebsd", Triple::FreeBSD)
-    .StartsWith("fuchsia", Triple::Fuchsia)
+    .StartsWith("hadean", Triple::Hadean) // @HADEAN@
     .StartsWith("ios", Triple::IOS)
     .StartsWith("kfreebsd", Triple::KFreeBSD)
     .StartsWith("linux", Triple::Linux)
