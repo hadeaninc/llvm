@@ -30,8 +30,8 @@ private:
 
   bool expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter);
   bool expandMBB(MachineBasicBlock &MBB);
-  void insertAddressValidation(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, const unsigned reg);
-  bool areTargetsSafe(MachineInstr &instr);
+  void insertAddressValidation(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, unsigned reg);
+  unsigned deobfuscateAddress(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, unsigned opaqueTarget);
   MachineBasicBlock *createDieBlock(MachineFunction &MF);
 };
 
@@ -88,6 +88,29 @@ bool X86HadeanExpandJumps::expandMBB(MachineBasicBlock &MBB) {
   return false;
 }
 
+unsigned X86HadeanExpandJumps::deobfuscateAddress(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, const unsigned opaqueTarget) {
+  MachineFunction &MF = *MBB.getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetRegisterClass *RegClass = &X86::GR64RegClass;
+  const unsigned trueTarget = MRI.createVirtualRegister(RegClass);
+  const unsigned maskReg = MRI.createVirtualRegister(RegClass);
+  const DebugLoc dl = MBBIter->getDebugLoc();
+
+  const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+
+  if (false) {
+    MCContext &context = MF.getContext();
+    MCSymbol *const xorValue = context.getOrCreateSymbol("xor_value");
+    BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addSym(xorValue);
+  } else {
+    BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addImm(0);
+  }
+
+  BuildMI(MBB, MBBIter, dl, TII.get(X86::XOR64rr), trueTarget).addReg(opaqueTarget).addReg(maskReg);
+  return trueTarget;
+}
+
 bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter) {
   MachineFunction &MF = *MBB.getParent();
   MachineInstr &MI = *MBBIter;
@@ -105,26 +128,16 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
           X86AddressMode addr = getAddressFromInstr(&MI, 0);
           MachineRegisterInfo &MRI = MF.getRegInfo();
           const TargetRegisterClass *RegClass = &X86::GR64RegClass;
-          const unsigned destRegEnc = MRI.createVirtualRegister(RegClass);
-          const unsigned destRegDec = MRI.createVirtualRegister(RegClass);
-          const unsigned maskReg = MRI.createVirtualRegister(RegClass);
-          DebugLoc dl = MI.getDebugLoc();
+          const unsigned opaqueTargetReg = MRI.createVirtualRegister(RegClass);
+          const DebugLoc dl = MI.getDebugLoc();
 
           const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
           const X86InstrInfo &TII = *STI.getInstrInfo();
 
-          addFullAddress(BuildMI(MBB, MI, dl, TII.get(X86::MOV64rm)).addReg(destRegEnc), addr);
-          if (false) {
-            MCContext &context = MF.getContext();
-            MCSymbol *const xorValue = context.getOrCreateSymbol("xor_value");
-            BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addSym(xorValue);
-          } else {
-            BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addImm(0);
-          }
-
-          BuildMI(MBB, MBBIter, dl, TII.get(X86::XOR64rr), destRegDec).addReg(destRegEnc).addReg(maskReg);
-          BuildMI(MBB, MBBIter, dl, TII.get(X86::CALL64r)).addReg(destRegDec);
-          insertAddressValidation(MBB, std::prev(MBBIter), destRegDec);
+          addFullAddress(BuildMI(MBB, MI, dl, TII.get(X86::MOV64rm)).addReg(opaqueTargetReg), addr);
+          const unsigned trueTargetReg = deobfuscateAddress(MBB, MBBIter, opaqueTargetReg);
+          BuildMI(MBB, MBBIter, dl, TII.get(X86::CALL64r)).addReg(trueTargetReg);
+          insertAddressValidation(MBB, std::prev(MBBIter), trueTargetReg);
           MI.eraseFromParent();
           return true;
         }
