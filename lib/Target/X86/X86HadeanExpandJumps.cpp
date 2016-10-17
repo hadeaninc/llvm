@@ -20,34 +20,33 @@ namespace {
 class X86HadeanExpandJumps : public MachineFunctionPass {
 public:
   static char ID;
+
   X86HadeanExpandJumps() : MachineFunctionPass(ID) {}
-
-  //MachineFunction *MF;
-  //const X86Subtarget *STI;
-  //const X86InstrInfo *TII;
-
   bool runOnMachineFunction(MachineFunction &fuction) override;
-
-  const char *getPassName() const override {
-    return "Hadean Jump Rewriter";
-  }
+  const char *getPassName() const override;
 
 private:
+  MachineBasicBlock *dieBlock;
+
   bool expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter);
   bool expandMBB(MachineBasicBlock &MBB);
-  bool isTargetSafe(MachineOperand &operand);
+  void insertAddressValidation(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, const unsigned reg);
   bool areTargetsSafe(MachineInstr &instr);
+  MachineBasicBlock *createDieBlock(MachineFunction &MF);
 };
 
 char X86HadeanExpandJumps::ID = 0;
 
 }
 
+const char *X86HadeanExpandJumps::getPassName() const {
+    return "Hadean Jump Rewriter";
+}
+
 bool X86HadeanExpandJumps::runOnMachineFunction(MachineFunction &MF) {
   printf("Hadean pass running!\n");
-  //this->MF = &MF;
-  //STI = &static_cast<const X86Subtarget &>(MF.getSubtarget());
-  //TII = STI->getInstrInfo();
+
+  dieBlock = createDieBlock(MF);
 
   bool modified = false;
   for (MachineBasicBlock &MBB : MF)
@@ -56,18 +55,37 @@ bool X86HadeanExpandJumps::runOnMachineFunction(MachineFunction &MF) {
   return modified;
 }
 
-bool X86HadeanExpandJumps::expandMBB(MachineBasicBlock &MBB) {
-  bool modified = false;
+MachineBasicBlock *X86HadeanExpandJumps::createDieBlock(MachineFunction &MF) {
+  const DebugLoc unknown;
+  MachineBasicBlock *MBB = MF.CreateMachineBasicBlock();
+  MF.insert(MF.end(), MBB);
+  MachineBasicBlock::iterator MBBIter = MBB->end();
 
+  const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+
+  MCContext &context = MF.getContext();
+  MCSymbol *const exitFunction = context.getOrCreateSymbol("exit");
+
+  BuildMI(*MBB, MBBIter, unknown, TII.get(X86::MOV64ri)).addReg(X86::EDI).addImm(13);
+  BuildMI(*MBB, MBBIter, unknown, TII.get(X86::CALL64pcrel32)).addSym(exitFunction);
+  return MBB;
+}
+
+bool X86HadeanExpandJumps::expandMBB(MachineBasicBlock &MBB) {
   // MBBI may be invalidated by the expansion.
   MachineBasicBlock::iterator MBBIter = MBB.begin(), MBBEnd = MBB.end();
   while (MBBIter != MBBEnd) {
     const MachineBasicBlock::iterator MBBIterNext = std::next(MBBIter);
-    modified |= expandMI(MBB, MBBIter);
+    const bool modified = expandMI(MBB, MBBIter);
+
+    if (modified)
+      return true;
+
     MBBIter = MBBIterNext;
   }
 
-  return modified;
+  return false;
 }
 
 bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter) {
@@ -81,7 +99,7 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
       switch (opcode) {
         case X86::CALL64pcrel32:
           // These are always immediates relative to the IP.
-          return true;
+          return false;
         case X86::CALL64m: {
           MI.dump();
           X86AddressMode addr = getAddressFromInstr(&MI, 0);
@@ -96,20 +114,17 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
           const X86InstrInfo &TII = *STI.getInstrInfo();
 
           addFullAddress(BuildMI(MBB, MI, dl, TII.get(X86::MOV64rm)).addReg(destRegEnc), addr);
-          if (false)
-          {
+          if (false) {
             MCContext &context = MF.getContext();
             MCSymbol *const xorValue = context.getOrCreateSymbol("xor_value");
             BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addSym(xorValue);
-          }
-          else
-          {
+          } else {
             BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(maskReg).addImm(0);
           }
 
           BuildMI(MBB, MBBIter, dl, TII.get(X86::XOR64rr), destRegDec).addReg(destRegEnc).addReg(maskReg);
           BuildMI(MBB, MBBIter, dl, TII.get(X86::CALL64r)).addReg(destRegDec);
-
+          insertAddressValidation(MBB, std::prev(MBBIter), destRegDec);
           MI.eraseFromParent();
           return true;
         }
@@ -128,11 +143,48 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
     }
 
     MI.dump();
-    report_fatal_error("Unhandled control-flow instruction in Hadean pass.");
+    //report_fatal_error("Unhandled control-flow instruction in Hadean pass.");
   }
 
   const bool modified = false;
   return modified;
+}
+
+void X86HadeanExpandJumps::insertAddressValidation(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter, const unsigned destReg) {
+  MachineFunction &MF = *MBB.getParent();
+  MCContext &context = MF.getContext();
+  MCSymbol *const textStart = context.getOrCreateSymbol("__executable_start");
+  MCSymbol *const textEnd = context.getOrCreateSymbol("__etext");
+
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetRegisterClass *RegClass = &X86::GR64RegClass;
+  const DebugLoc dl = MBBIter->getDebugLoc();
+  const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+
+  const unsigned textStartReg = MRI.createVirtualRegister(RegClass);
+  const unsigned textEndReg = MRI.createVirtualRegister(RegClass);
+
+  BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(textStartReg).addSym(textStart);
+  BuildMI(MBB, MBBIter, dl, TII.get(X86::MOV64ri)).addReg(textEndReg).addSym(textEnd);
+
+  // Lower bound check
+  BuildMI(MBB, MBBIter, dl, TII.get(X86::CMP64rr)).addReg(destReg).addReg(textStartReg);
+  BuildMI(MBB, MBBIter, dl, TII.get(X86::JL_1)).addMBB(dieBlock);
+  MBB.addSuccessorWithoutProb(dieBlock);
+
+  // Upper bound check
+  MachineBasicBlock &check2 = *MF.CreateMachineBasicBlock();
+  MF.insert(std::next(MBB.getIterator()), &check2);
+  BuildMI(check2, check2.end(), dl, TII.get(X86::CMP64rr)).addReg(destReg).addReg(textEndReg);
+  BuildMI(check2, check2.end(), dl, TII.get(X86::JGE_1)).addMBB(dieBlock);
+  check2.addSuccessorWithoutProb(dieBlock);
+
+  // Splice remainder into new basic block
+  MachineBasicBlock &success = *MF.CreateMachineBasicBlock();
+  MF.insert(std::next(check2.getIterator()), &success);
+  success.splice(success.begin(), &MBB, MBBIter, MBB.end());
+  success.transferSuccessorsAndUpdatePHIs(&MBB);
 }
 
 FunctionPass *llvm::createX86HadeanExpandJumps() {
