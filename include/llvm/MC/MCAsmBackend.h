@@ -133,6 +133,11 @@ public:
       generateCompactUnwindEncoding(ArrayRef<MCCFIInstruction>) const {
     return 0;
   }
+
+  // @HADEAN@
+  virtual bool customExpandInst(const MCInst &instr, MCStreamer &out) {
+    return false;
+  }
 };
 
 } // End llvm namespace
