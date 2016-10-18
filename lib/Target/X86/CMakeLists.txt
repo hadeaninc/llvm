@@ -40,6 +40,7 @@ set(sources
   X86WinAllocaExpander.cpp
   X86WinEHState.cpp
   X86HadeanExpandJumps.cpp # @HADEAN@
+  X86HadeanRewriteControl.cpp # @HADEAN@
   )
 
 add_llvm_target(X86CodeGen ${sources})

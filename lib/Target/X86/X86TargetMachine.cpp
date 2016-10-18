@@ -334,4 +334,8 @@ void X86PassConfig::addPreEmitPass() {
     addPass(createX86PadShortFunctions());
     addPass(createX86FixupLEAs());
   }
+
+  if (Triple(TM->getTargetTriple()).isOSHadean()) {
+    addPass(createX86HadeanRewriteControl());
+  }
 }

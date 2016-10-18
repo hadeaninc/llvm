@@ -88,6 +88,7 @@ FunctionPass *createX86FixupBWInsts();
 
 // @HADEAN@
 FunctionPass *createX86HadeanExpandJumps();
+FunctionPass *createX86HadeanRewriteControl();
 
 void initializeFixupBWInstPassPass(PassRegistry &);
 } // End llvm namespace
