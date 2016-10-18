@@ -313,7 +313,7 @@ void X86PassConfig::addPreRegAlloc() {
   }
 
   addPass(createX86WinAllocaExpander());
-  addPass(createX86HadeanExpandJumps()); // @HADEAN@
+  //addPass(createX86HadeanExpandJumps()); // @HADEAN@
 }
 
 void X86PassConfig::addPostRegAlloc() {
