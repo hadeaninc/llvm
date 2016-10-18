@@ -1,4 +1,5 @@
 #include <iterator>
+#include <cassert>
 #include "X86.h"
 //#include "X86FrameLowering.h"
 #include "X86InstrBuilder.h"
@@ -114,6 +115,10 @@ unsigned X86HadeanExpandJumps::deobfuscateAddress(MachineBasicBlock &MBB, Machin
 bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter) {
   MachineFunction &MF = *MBB.getParent();
   MachineInstr &MI = *MBBIter;
+  const DebugLoc dl = MI.getDebugLoc();
+  const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+
 
   if (MI.isCall() || MI.isTerminator()) {
     const unsigned opcode = MI.getOpcode();
@@ -124,18 +129,22 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
           // These are always immediates relative to the IP.
           return false;
         case X86::CALL64m: {
-          MI.dump();
           X86AddressMode addr = getAddressFromInstr(&MI, 0);
           MachineRegisterInfo &MRI = MF.getRegInfo();
           const TargetRegisterClass *RegClass = &X86::GR64RegClass;
           const unsigned opaqueTargetReg = MRI.createVirtualRegister(RegClass);
-          const DebugLoc dl = MI.getDebugLoc();
-
-          const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
-          const X86InstrInfo &TII = *STI.getInstrInfo();
 
           addFullAddress(BuildMI(MBB, MI, dl, TII.get(X86::MOV64rm)).addReg(opaqueTargetReg), addr);
           const unsigned trueTargetReg = deobfuscateAddress(MBB, MBBIter, opaqueTargetReg);
+          BuildMI(MBB, MBBIter, dl, TII.get(X86::CALL64r)).addReg(trueTargetReg);
+          insertAddressValidation(MBB, std::prev(MBBIter), trueTargetReg);
+          MI.eraseFromParent();
+          return true;
+        }
+        case X86::CALL64r: {
+          const MachineOperand &operand = MI.getOperand(0);
+          assert(operand.isReg());
+          const unsigned trueTargetReg = deobfuscateAddress(MBB, MBBIter, operand.getReg());
           BuildMI(MBB, MBBIter, dl, TII.get(X86::CALL64r)).addReg(trueTargetReg);
           insertAddressValidation(MBB, std::prev(MBBIter), trueTargetReg);
           MI.eraseFromParent();
@@ -156,7 +165,7 @@ bool X86HadeanExpandJumps::expandMI(MachineBasicBlock &MBB, MachineBasicBlock::i
     }
 
     MI.dump();
-    //report_fatal_error("Unhandled control-flow instruction in Hadean pass.");
+    report_fatal_error("Unhandled control-flow instruction in Hadean pass.");
   }
 
   const bool modified = false;
