@@ -890,6 +890,7 @@ def FavorMemIndirectCall  : Predicate<"!Subtarget->callRegIndirect()">;
 def NotSlowIncDec : Predicate<"!Subtarget->slowIncDec()">;
 def HasFastMem32 : Predicate<"!Subtarget->isUnalignedMem32Slow()">;
 def HasMFence    : Predicate<"Subtarget->hasMFence()">;
+def IsHadean     : Predicate<"Subtarget->isTargetHadean()">; // @HADEAN@
 
 //===----------------------------------------------------------------------===//
 // X86 Instruction Format Definitions.
@@ -2528,6 +2529,9 @@ include "X86InstrCMovSetCC.td"
 include "X86InstrExtension.td"
 include "X86InstrControl.td"
 include "X86InstrShiftRotate.td"
+
+// @HADEAN@
+include "X86InstrHadean.td"
 
 // X87 Floating Point Stack.
 include "X86InstrFPStack.td"
