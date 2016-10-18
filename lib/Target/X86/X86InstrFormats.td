@@ -56,6 +56,11 @@ def MRM_F9 : Format<89>; def MRM_FA : Format<90>; def MRM_FB : Format<91>;
 def MRM_FC : Format<92>; def MRM_FD : Format<93>; def MRM_FE : Format<94>;
 def MRM_FF : Format<95>;
 
+def CustomFrm : Format<126>; // @HADEAN@
+// We copy what NaCl does here. This presumably causes code emission to
+// fail if we accidentally fail to flatten one of our custom
+// instructions.
+
 // ImmType - This specifies the immediate type used by an instruction. This is
 // part of the ad-hoc solution used to emit machine instruction encodings by our
 // machine code emitter.
