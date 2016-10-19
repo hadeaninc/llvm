@@ -23,6 +23,8 @@ private:
   void emitXOR64rr(MCStreamer &out, unsigned destReg, unsigned opReg);
   void emitCMP64rr(MCStreamer &out, unsigned r1, unsigned r2);
   MCOperand buildExternalSymbolOperand(MCStreamer &out, const std::string &name);
+  void addMemoryReference(MCStreamer &out, MCInst& instr, const unsigned baseReg,
+    const unsigned indexReg, const unsigned scale, const int displacement);
   //void emitValidate();
 
 public:
