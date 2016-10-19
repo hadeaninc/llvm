@@ -46,7 +46,33 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
 
   // Decode the address
   const unsigned scratch = X86::R10;
+
   emitPUSH64r(out, scratch);
+  emitPUSH64r(out, scratch);
+
+  // Create return label
+  MCSymbol *labelReturn = context.createTempSymbol();
+  assert(labelReturn != nullptr);
+  const MCExpr *labelReturnExpr = MCSymbolRefExpr::create(labelReturn, context);
+  assert(labelReturnExpr != NULL);
+
+  // Move return address to scratch
+  {
+    MCInstBuilder movBuilder(X86::MOV64ri);
+    movBuilder.addReg(scratch);
+    movBuilder.addExpr(labelReturnExpr);
+    out.EmitInstruction(movBuilder, subtargetInfo);
+  }
+
+  // Move scratch to stack
+  {
+    MCInst instr;
+    instr.setOpcode(X86::MOV64mr);
+    addMemoryReference(out, instr, X86::RSP, 0, 1, 1*8);
+    instr.addOperand(MCOperand::createReg(scratch));
+    out.EmitInstruction(instr, subtargetInfo);
+  }
+
   emitMOV64ri(out, scratch, xorValue);
   emitXOR64rr(out, op.getReg(), scratch);
 
@@ -55,12 +81,6 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   assert(labelFail != nullptr);
   const MCExpr *labelFailExpr = MCSymbolRefExpr::create(labelFail, context);
   assert(labelFailExpr != NULL);
-
-  // Create return label
-  MCSymbol *labelReturn = context.createTempSymbol();
-  assert(labelReturn != nullptr);
-  const MCExpr *labelReturnExpr = MCSymbolRefExpr::create(labelReturn, context);
-  assert(labelReturnExpr != NULL);
 
   // Load text start
   {
@@ -107,9 +127,6 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
 
   // Return from function call
   out.EmitLabel(labelReturn);
-
-  //TODO: this restores values too late
-  emitPOP64r(out, scratch);
 }
 
 void HadeanExpander::emitHadeanRet(MCStreamer &out) {
@@ -125,14 +142,7 @@ void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCOperand &op) {
 
 void HadeanExpander::emitCall(MCStreamer &out, unsigned destReg, const MCExpr &returnAddress, unsigned scratch)
 {
-  MCInstBuilder movBuilder(X86::MOV64ri);
-  movBuilder.addReg(scratch);
-  movBuilder.addExpr(&returnAddress);
-  out.EmitInstruction(movBuilder, subtargetInfo);
-
-  MCInstBuilder pushBuilder(X86::PUSH64r);
-  pushBuilder.addReg(scratch);
-  out.EmitInstruction(pushBuilder, subtargetInfo);
+  emitPOP64r(out, scratch);
 
   MCInstBuilder jumpBuilder(X86::JMP64r);
   jumpBuilder.addReg(destReg);
@@ -181,6 +191,16 @@ MCOperand HadeanExpander::buildExternalSymbolOperand(MCStreamer &out, const std:
   assert(symExpr != nullptr);
   out.EmitSymbolAttribute(sym, MCSA_ELF_TypeNoType);
   return MCOperand::createExpr(symExpr);
+}
+
+void HadeanExpander::addMemoryReference(MCStreamer &out, MCInst& instr, const unsigned baseReg,
+    const unsigned indexReg, const unsigned scale, const int displacement) {
+  const unsigned segReg = 0;
+  instr.addOperand(MCOperand::createReg(baseReg));
+  instr.addOperand(MCOperand::createImm(scale));
+  instr.addOperand(MCOperand::createReg(indexReg));
+  instr.addOperand(MCOperand::createImm(displacement));
+  instr.addOperand(MCOperand::createReg(segReg));
 }
 
 }
