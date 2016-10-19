@@ -44,11 +44,9 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   assert(op.isReg());
   MCContext &context = out.getContext();
 
-  // Decode the address
-  const unsigned scratch = X86::R10;
-
-  emitPUSH64r(out, scratch);
-  emitPUSH64r(out, scratch);
+  // We've reserved this for Hadean
+  const unsigned realTarget = X86::R11;
+  const unsigned target = op.getReg();
 
   // Create return label
   MCSymbol *labelReturn = context.createTempSymbol();
@@ -56,25 +54,23 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   const MCExpr *labelReturnExpr = MCSymbolRefExpr::create(labelReturn, context);
   assert(labelReturnExpr != NULL);
 
-  // Move return address to scratch
+  // Move return address to realTarget
   {
     MCInstBuilder movBuilder(X86::MOV64ri);
-    movBuilder.addReg(scratch);
+    movBuilder.addReg(realTarget);
     movBuilder.addExpr(labelReturnExpr);
     out.EmitInstruction(movBuilder, subtargetInfo);
   }
 
-  // Move scratch to stack
-  {
-    MCInst instr;
-    instr.setOpcode(X86::MOV64mr);
-    addMemoryReference(out, instr, X86::RSP, 0, 1, 1*8);
-    instr.addOperand(MCOperand::createReg(scratch));
-    out.EmitInstruction(instr, subtargetInfo);
-  }
+  // Move return address to stack
+  emitPUSH64r(out, realTarget);
 
-  emitMOV64ri(out, scratch, xorValue);
-  emitXOR64rr(out, op.getReg(), scratch);
+  // Backup obfuscated target address
+  emitPUSH64r(out, target);
+
+  // Decode the branch address
+  emitMOV64ri(out, realTarget, xorValue);
+  emitXOR64rr(out, realTarget, target);
 
   // Create failure label
   MCSymbol *labelFail = context.createTempSymbol();
@@ -85,11 +81,11 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   // Load text start
   {
     MCInstBuilder builder(X86::MOV64ri);
-    builder.addReg(scratch);
+    builder.addReg(target);
     builder.addOperand(buildExternalSymbolOperand(out, "__executable_start"));
     out.EmitInstruction(builder, subtargetInfo);
   }
-  emitCMP64rr(out, scratch, op.getReg());
+  emitCMP64rr(out, target, realTarget);
   {
     MCInstBuilder builder(X86::JL_1);
     builder.addExpr(labelFailExpr);
@@ -99,18 +95,19 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   // Load text end
   {
     MCInstBuilder builder(X86::MOV64ri);
-    builder.addReg(scratch);
+    builder.addReg(target);
     builder.addOperand(buildExternalSymbolOperand(out, "__etext"));
     out.EmitInstruction(builder, subtargetInfo);
   }
-  emitCMP64rr(out, scratch, op.getReg());
+  emitCMP64rr(out, target, realTarget);
   {
     MCInstBuilder builder(X86::JGE_1);
     builder.addExpr(labelFailExpr);
     out.EmitInstruction(builder, subtargetInfo);
   }
 
-  emitCall(out, op.getReg(), *labelReturnExpr, scratch);
+  emitPOP64r(out, target);
+  emitCall(out, realTarget, *labelReturnExpr, target);
 
   // Failure
   out.EmitLabel(labelFail);
@@ -140,10 +137,8 @@ void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCOperand &op) {
   out.EmitInstruction(builder, subtargetInfo);
 }
 
-void HadeanExpander::emitCall(MCStreamer &out, unsigned destReg, const MCExpr &returnAddress, unsigned scratch)
+void HadeanExpander::emitCall(MCStreamer &out, unsigned destReg, const MCExpr &returnAddress, unsigned restore)
 {
-  emitPOP64r(out, scratch);
-
   MCInstBuilder jumpBuilder(X86::JMP64r);
   jumpBuilder.addReg(destReg);
   out.EmitInstruction(jumpBuilder, subtargetInfo);
