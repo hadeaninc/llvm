@@ -73,14 +73,14 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
 }
 
 void HadeanExpander::emitHadeanRet(MCStreamer &out) {
-  MCInstBuilder builder(X86::RETQ);
-  out.EmitInstruction(builder, subtargetInfo);
+  emitPOP64r(out, BTR);
+  emitValidatedJump(out);
 }
 
 void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCOperand &op) {
-  MCInstBuilder builder(X86::JMP64r);
-  builder.addOperand(op);
-  out.EmitInstruction(builder, subtargetInfo);
+  assert(op.isReg());
+  emitMOV64rr(out, BTR, op.getReg());
+  emitValidatedJump(out);
 }
 
 void HadeanExpander::emitValidatedJump(MCStreamer &out) {
