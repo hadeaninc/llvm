@@ -96,17 +96,22 @@ bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineBasicBloc
   unsigned newOpcode = 0;
 
   switch (opcode) {
-    case X86::CALL64pcrel32:  return false;
+    case X86::CALL64pcrel32:  return false; // Why are these flagged as indirect?
+    case X86::TAILJMPd64:     return false;
     case X86::CALL64r:        newOpcode = X86::HAD_CALL64r; break;
     case X86::JMP64r:         newOpcode = X86::HAD_JMP64r;  break;
-    case X86::TAILJMPr64:     newOpcode = X86::HAD_JMP64r;  break;
-    case X86::TAILJMPr64_REX: newOpcode = X86::HAD_JMP64r;  break;
+    case X86::CALL64m:        newOpcode = X86::HAD_CALL64m; break;
+    case X86::JMP64m:         newOpcode = X86::HAD_JMP64m;  break;
+    //case X86::TAILJMPr64:     newOpcode = X86::HAD_JMP64r;  break;
+    //case X86::TAILJMPr64_REX: newOpcode = X86::HAD_JMP64r;  break;
     default: break;
   }
 
   if (newOpcode != 0) {
-    const unsigned targetReg = MI.getOperand(0).getReg();
-    BuildMI(MBB, MBBIter, dl, TII.get(newOpcode)).addReg(targetReg);
+    MachineInstrBuilder builder = BuildMI(MBB, MBBIter, dl, TII.get(newOpcode));
+    for(size_t i = 0; i < MI.getNumOperands(); ++i)
+      builder.addOperand(MI.getOperand(i));
+
     MI.eraseFromParent();
     return true;
   }

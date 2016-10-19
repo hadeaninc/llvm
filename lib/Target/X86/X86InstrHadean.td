@@ -4,7 +4,9 @@ class HadeanPI64<dag outs, dag ins, string asm>
 
 let isCall = 1, isAsmParserOnly = 1, Uses = [RSP] in {
   def HAD_CALL64r       : HadeanPI64<(outs), (ins GR64:$dst),
-                        "hadcall{q}\t{*}$dst">;
+                        "hadcall\t$dst">;
+  def HAD_CALL64m       : HadeanPI64<(outs), (ins i64mem:$dst),
+                        "hadcall\t$dst">;
 }
 
 let isTerminator = 1, isReturn = 1, isBarrier = 1,
@@ -13,7 +15,9 @@ let isTerminator = 1, isReturn = 1, isBarrier = 1,
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1, isAsmParserOnly = 1 in {
-  def HAD_JMP64r : HadeanPI64<(outs), (ins GR64:$dst),
-                    "hadjmp\t{$dst}">;
+  def HAD_JMP64r :  HadeanPI64<(outs), (ins GR64:$dst),
+                    "hadjmp\t$dst">;
+  def HAD_JMP64m :  HadeanPI64<(outs), (ins i64mem:$dst), 
+                    "hadjmp\t$dst">;
 }
 
