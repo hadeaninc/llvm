@@ -23,16 +23,18 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &instr) {
 
   switch (opcode)
   {
-    case X86::HAD_CALL64r: {
-      emitHadeanCall(out, instr.getOperand(0));
+    case X86::HAD_CALL64r:
+    case X86::HAD_CALL64m: {
+      emitHadeanCall(out, instr.begin(), instr.end());
       return true;
     }
     case X86::HAD_RET64: {
       emitHadeanRet(out);
       return true;
     }
-    case X86::HAD_JMP64r: {
-      emitHadeanJump(out, instr.getOperand(0));
+    case X86::HAD_JMP64r:
+    case X86::HAD_JMP64m: {
+      emitHadeanJump(out, instr.begin(), instr.end());
       return true;
     }
     default:
@@ -40,10 +42,8 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &instr) {
   }
 }
 
-void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
-  assert(op.isReg());
+void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
   MCContext &context = out.getContext();
-
 
   // Create return label
   MCSymbol *labelReturn = context.createTempSymbol();
@@ -63,7 +63,7 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCOperand &op) {
   emitPUSH64r(out, BTR);
 
   // Move obfuscated target to BTR
-  emitMOV64rr(out, BTR, op.getReg());
+  emitMOV64r(out, BTR, opBegin, opEnd);
 
   // Decode, validate and jump to target
   emitValidatedJump(out);
@@ -77,10 +77,26 @@ void HadeanExpander::emitHadeanRet(MCStreamer &out) {
   emitValidatedJump(out);
 }
 
-void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCOperand &op) {
-  assert(op.isReg());
-  emitMOV64rr(out, BTR, op.getReg());
+void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
+  emitMOV64r(out, BTR, opBegin, opEnd);
   emitValidatedJump(out);
+}
+
+void HadeanExpander::emitMOV64r(MCStreamer& out, unsigned reg, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd)
+{
+  if (opBegin == opEnd) {
+    llvm_unreachable("No operand!");
+  } else if (std::next(opBegin) == opEnd && opBegin->isReg()) {
+    emitMOV64rr(out, BTR, opBegin->getReg());
+  } else if (opEnd - opBegin == 5) { // Memory accesses have 5 operands
+    MCInstBuilder movBuilder(X86::MOV64rm);
+    movBuilder.addReg(BTR);
+    for(MCInst::const_iterator opIter = opBegin; opIter != opEnd; ++opIter)
+      movBuilder.addOperand(*opIter);
+    out.EmitInstruction(movBuilder, subtargetInfo);
+  } else {
+    llvm_unreachable("Unhandled operand type for indirect jump target.");
+  }
 }
 
 void HadeanExpander::emitValidatedJump(MCStreamer &out) {

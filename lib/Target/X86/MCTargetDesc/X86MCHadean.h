@@ -17,14 +17,15 @@ private:
   const uint64_t xorValue;
 
   void emitHadeanRet(MCStreamer &out);
-  void emitHadeanJump(MCStreamer &out, const MCOperand &op);
-  void emitHadeanCall(MCStreamer &out, const MCOperand &op);
+  void emitHadeanJump(MCStreamer &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
+  void emitHadeanCall(MCStreamer &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
   void emitPUSH64r(MCStreamer &out, unsigned reg);
   void emitPOP64r(MCStreamer &out, unsigned reg);
   void emitMOV64ri(MCStreamer &out, unsigned reg, uint64_t value);
   void emitMOV64rr(MCStreamer &out, unsigned dst, unsigned src);
   void emitXOR64rr(MCStreamer &out, unsigned destReg, unsigned opReg);
   void emitCMP64rr(MCStreamer &out, unsigned r1, unsigned r2);
+  void emitMOV64r(MCStreamer& out, unsigned reg, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
   void emitValidatedJump(MCStreamer &out);
   MCOperand buildExternalSymbolOperand(MCStreamer &out, const std::string &name);
   void addMemoryReference(MCStreamer &out, MCInst& instr, const unsigned baseReg,
