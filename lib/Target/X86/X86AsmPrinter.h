@@ -41,6 +41,12 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
   // few instruction bytes to cover the shadow are NOPs used for padding.
   class StackMapShadowTracker {
   public:
+    // @HADEAN@
+    // Call reset to setup the tracker correctly
+    StackMapShadowTracker() {
+      reset(0);
+    }
+
     void startFunction(MachineFunction &MF) {
       this->MF = &MF;
     }
@@ -51,7 +57,10 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
     void reset(unsigned RequiredSize) {
       RequiredShadowSize = RequiredSize;
       CurrentShadowSize = 0;
-      InShadow = true;
+
+      // @HADEAN@
+      // Ensure counting is immediately disabled if shadows are not required
+      InShadow = (CurrentShadowSize < RequiredShadowSize);
     }
 
     // Called before every stackmap/patchpoint, and at the end of basic blocks,
@@ -59,14 +68,14 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
     void emitShadowPadding(MCStreamer &OutStreamer, const MCSubtargetInfo &STI);
   private:
     const MachineFunction *MF;
-    bool InShadow = false;
+    bool InShadow;
 
     // RequiredShadowSize holds the length of the shadow specified in the most
     // recently encountered STACKMAP instruction.
     // CurrentShadowSize counts the number of bytes encoded since the most
     // recently encountered STACKMAP, stopping when that number is greater than
     // or equal to RequiredShadowSize.
-    unsigned RequiredShadowSize = 0, CurrentShadowSize = 0;
+    unsigned RequiredShadowSize, CurrentShadowSize;
   };
 
   StackMapShadowTracker SMShadowTracker;
