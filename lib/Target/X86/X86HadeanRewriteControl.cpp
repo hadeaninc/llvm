@@ -96,6 +96,7 @@ bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineBasicBloc
   unsigned newOpcode = 0;
 
   switch (opcode) {
+    case X86::TRAP:           return false; // TODO: Enabled for now to build musl
     case X86::CALL64pcrel32:  return false; // Why are these flagged as indirect?
     case X86::TAILJMPd64:     return false;
     case X86::CALL64r:        newOpcode = X86::HAD_CALL64r; break;
