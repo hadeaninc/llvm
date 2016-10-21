@@ -107,9 +107,33 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
   // Backup scratch
   emitPUSH64r(out, scratch);
 
-  // Decode the branch address
-  emitMOV64ri(out, scratch, xorValue);
-  emitXOR64rr(out, BTR, scratch);
+  const bool smarterObfuscation = false;
+  if (!smarterObfuscation) {
+    // Decode the branch address
+    emitMOV64ri(out, scratch, xorValue);
+    emitXOR64rr(out, BTR, scratch);
+  } else {
+    const unsigned maskReg = scratch;
+    const unsigned maskedReg = X86::RBX;
+    assert(BTR != maskedReg);
+    assert(BTR != maskReg);
+    assert(maskReg != maskedReg);
+
+    emitPUSH64r(out, maskedReg);
+    emitMOV64ri(out, maskReg, 0x5555555555555555ull);
+
+    for(int round = 0; round < 5; ++round) {
+      const int shift = (2 << round) - 1;
+      for(int i = 0; i < 2; ++i) {
+        emitMOV64rr(out, maskedReg, BTR);
+        emitAND64rr(out, maskedReg, maskReg);
+        emitROL64ri(out, BTR, shift);
+        emitXOR64rr(out, BTR, maskedReg);
+      }
+    }
+
+    emitPOP64r(out, maskedReg);
+  }
 
   // Create failure label
   MCSymbol *labelFail = context.createTempSymbol();
@@ -167,9 +191,16 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
   }
 }
 
-
 void HadeanExpander::emitXOR64rr(MCStreamer &out, unsigned destReg, unsigned opReg) {
   MCInstBuilder builder(X86::XOR64rr);
+  builder.addReg(destReg);
+  builder.addReg(destReg);
+  builder.addReg(opReg);
+  out.EmitInstruction(builder, subtargetInfo);
+}
+
+void HadeanExpander::emitAND64rr(MCStreamer &out, unsigned destReg, unsigned opReg) {
+  MCInstBuilder builder(X86::AND64rr);
   builder.addReg(destReg);
   builder.addReg(destReg);
   builder.addReg(opReg);
@@ -204,6 +235,14 @@ void HadeanExpander::emitCMP64rr(MCStreamer &out, unsigned r1, unsigned r2) {
 
 void HadeanExpander::emitMOV64ri(MCStreamer &out, const unsigned reg, const uint64_t immediate) {
   MCInstBuilder builder(X86::MOV64ri);
+  builder.addReg(reg);
+  builder.addImm(immediate);
+  out.EmitInstruction(builder, subtargetInfo);
+}
+
+void HadeanExpander::emitROL64ri(MCStreamer &out, const unsigned reg, const uint64_t immediate) {
+  MCInstBuilder builder(X86::ROL64ri);
+  builder.addReg(reg);
   builder.addReg(reg);
   builder.addImm(immediate);
   out.EmitInstruction(builder, subtargetInfo);
