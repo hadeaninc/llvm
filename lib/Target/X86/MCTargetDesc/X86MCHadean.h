@@ -21,9 +21,13 @@ private:
   void emitHadeanCall(MCStreamer &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
   void emitPUSH64r(MCStreamer &out, unsigned reg);
   void emitPOP64r(MCStreamer &out, unsigned reg);
+  void emitPUSHXMMr(MCStreamer &out, unsigned reg);
+  void emitPOPXMMr(MCStreamer &out, unsigned reg);
   void emitMOV64ri(MCStreamer &out, unsigned reg, uint64_t value);
+  void emitROL64ri(MCStreamer &out, unsigned reg, uint64_t value);
   void emitMOV64rr(MCStreamer &out, unsigned dst, unsigned src);
   void emitXOR64rr(MCStreamer &out, unsigned destReg, unsigned opReg);
+  void emitAND64rr(MCStreamer &out, unsigned destReg, unsigned opReg);
   void emitCMP64rr(MCStreamer &out, unsigned r1, unsigned r2);
   void emitMOV64r(MCStreamer& out, unsigned reg, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
   void emitValidatedJump(MCStreamer &out);
