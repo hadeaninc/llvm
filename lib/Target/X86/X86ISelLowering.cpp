@@ -1880,6 +1880,13 @@ X86TargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
 /// current function.  The returned value is a member of the
 /// MachineJumpTableInfo::JTEntryKind enum.
 unsigned X86TargetLowering::getJumpTableEncoding() const {
+  // @HADEAN@ We use absolute addresses in jump tables and rely on
+  // relocation to fix them up since any sort of pointer arithmetic on
+  // obfuscated pointers is invalid.
+  if (Subtarget.isTargetHadean()) {
+    return MachineJumpTableInfo::EK_BlockAddress;
+  }
+
   // In GOT pic mode, each entry in the jump table is emitted as a @GOTOFF
   // symbol.
   if (isPositionIndependent() && Subtarget.isPICStyleGOT())
