@@ -3476,7 +3476,13 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
         ISD::SEXTLOAD, dl, PTy, Chain, Addr,
         MachinePointerInfo::getJumpTable(DAG.getMachineFunction()), MemVT);
     Addr = LD;
-    if (TM.isPositionIndependent()) {
+
+    // @HADEAN@ To avoid pointer arithmetic on obfuscated pointers, we
+    // use absolute block addresses in jump tables and rely on
+    // relocation to handle these correctly. LLVM assumes that jump
+    // table addresses in PIC are encoded relative
+    // to RelocBase so we fix this logic.
+    if (TM.isPositionIndependent() && TLI.getJumpTableEncoding() != MachineJumpTableInfo::EK_BlockAddress) {
       // For PIC, the sequence is:
       // BRIND(load(Jumptable + index) + RelocBase)
       // RelocBase can be JumpTable, GOT or some sort of global base.
