@@ -155,6 +155,7 @@ const char *Triple::getVendorTypeName(VendorType Kind) {
   case Myriad: return "myriad";
   case AMD: return "amd";
   case Mesa: return "mesa";
+  case Hadean: return "hadean"; // @HADEAN@
   }
 
   llvm_unreachable("Invalid VendorType!");
@@ -168,7 +169,6 @@ const char *Triple::getOSTypeName(OSType Kind) {
   case Darwin: return "darwin";
   case DragonFly: return "dragonfly";
   case FreeBSD: return "freebsd";
-  case Hadean: return "hadean"; // @HADEAN@
   case IOS: return "ios";
   case KFreeBSD: return "kfreebsd";
   case Linux: return "linux";
@@ -429,6 +429,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("myriad", Triple::Myriad)
     .Case("amd", Triple::AMD)
     .Case("mesa", Triple::Mesa)
+    .Case("hadean", Triple::Hadean) // @HADEAN@
     .Default(Triple::UnknownVendor);
 }
 
@@ -438,7 +439,6 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("darwin", Triple::Darwin)
     .StartsWith("dragonfly", Triple::DragonFly)
     .StartsWith("freebsd", Triple::FreeBSD)
-    .StartsWith("hadean", Triple::Hadean) // @HADEAN@
     .StartsWith("ios", Triple::IOS)
     .StartsWith("kfreebsd", Triple::KFreeBSD)
     .StartsWith("linux", Triple::Linux)
