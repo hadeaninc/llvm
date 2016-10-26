@@ -135,6 +135,7 @@ public:
     Myriad,
     AMD,
     Mesa,
+    Hadean, // @HADEAN@
     LastVendorType = Mesa
   };
   enum OSType {
@@ -144,7 +145,6 @@ public:
     Darwin,
     DragonFly,
     FreeBSD,
-    Hadean,     // @HADEAN@
     IOS,
     KFreeBSD,
     Linux,
@@ -537,11 +537,6 @@ public:
     return getOS() == Triple::Linux;
   }
 
-  // @HADEAN@
-  bool isOSHadean() const {
-    return getOS() == Triple::Hadean;
-  }
-
   /// Tests whether the OS is kFreeBSD.
   bool isOSKFreeBSD() const {
     return getOS() == Triple::KFreeBSD;
@@ -578,6 +573,11 @@ public:
   bool isPS4() const {
     return getVendor() == Triple::SCEI &&
            getOS() == Triple::PS4;
+  }
+
+  // @HADEAN@
+  bool isVendorHadean() const {
+    return getVendor() == Triple::Hadean;
   }
 
   /// Tests whether the target is Android
