@@ -15,7 +15,8 @@
 namespace llvm {
 
 HadeanExpander::HadeanExpander(const MCSubtargetInfo &_subtargetInfo) :
-  subtargetInfo(_subtargetInfo), xorValue(0) {
+  // subtargetInfo(_subtargetInfo), xorValue(0) {
+  subtargetInfo(_subtargetInfo), xorValue(0xf0f0f0f0f0f0f0f0) {
 }
 
 bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &instr) {
