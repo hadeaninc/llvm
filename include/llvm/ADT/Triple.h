@@ -135,8 +135,8 @@ public:
     CSR,
     Myriad,
     AMD,
-    Mesa,
     Hadean, // @HADEAN@
+    Mesa,
     LastVendorType = Mesa
   };
   enum OSType {
