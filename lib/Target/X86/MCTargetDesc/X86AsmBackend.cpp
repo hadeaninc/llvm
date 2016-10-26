@@ -890,7 +890,7 @@ MCAsmBackend *llvm::createX86_64AsmBackend(const Target &T,
   uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TheTriple.getOS());
 
   // @HADEAN@
-  if (TheTriple.isOSHadean()) {
+  if (TheTriple.isVendorHadean()) {
     return new HadeanX86_64AsmBackend(T, OSABI, CPU);
   }
 
