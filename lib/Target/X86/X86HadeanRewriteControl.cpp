@@ -21,8 +21,9 @@ namespace {
 class X86HadeanRewriteControl : public MachineFunctionPass {
 public:
   static char ID;
+  bool hasBeenRun;
 
-  X86HadeanRewriteControl() : MachineFunctionPass(ID) {}
+  X86HadeanRewriteControl() : MachineFunctionPass(ID), hasBeenRun(false) {}
   bool runOnMachineFunction(MachineFunction &fuction) override;
   const char *getPassName() const override;
 
@@ -39,7 +40,7 @@ char X86HadeanRewriteControl::ID = 0;
 }
 
 const char *X86HadeanRewriteControl::getPassName() const {
-    return "Hadean Control Flow Instruction Rewriter";
+    return "Hadean control flow instruction rewriter";
 }
 
 bool X86HadeanRewriteControl::HasControlFlow(const MachineInstr &MI) {
@@ -57,7 +58,10 @@ bool X86HadeanRewriteControl::IsDirectBranch(const MachineInstr &MI) {
 
 
 bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
-  printf("Hadean pass running!\n");
+  if (!hasBeenRun) {
+    hasBeenRun = true;
+    printf("%s is active.\n", getPassName());
+  }
 
   bool modified = false;
   for (MachineBasicBlock &MBB : MF)
