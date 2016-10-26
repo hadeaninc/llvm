@@ -179,7 +179,9 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
 
   // Failure
   out.EmitLabel(labelFail);
-  {
+
+  const bool useExitFunction = false;
+  if (useExitFunction) {
     MCInstBuilder movBuilder(X86::MOV32ri);
     movBuilder.addReg(X86::EDI);
     movBuilder.addImm(13);
@@ -188,6 +190,10 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
     MCInstBuilder callBuilder(X86::CALL64pcrel32);
     callBuilder.addOperand(buildExternalSymbolOperand(out, "exit"));
     out.EmitInstruction(callBuilder, subtargetInfo);
+  } else {
+    MCInstBuilder jumpBuilder(X86::JMP_4);
+    jumpBuilder.addOperand(buildExternalSymbolOperand(out, "__hadean_invalid_jump"));
+    out.EmitInstruction(jumpBuilder, subtargetInfo);
   }
 }
 
