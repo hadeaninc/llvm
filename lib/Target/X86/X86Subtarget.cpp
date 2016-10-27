@@ -88,8 +88,11 @@ X86Subtarget::classifyLocalReference(const GlobalValue *GV) const {
 
 unsigned char X86Subtarget::classifyGlobalReference(const GlobalValue *GV,
                                                     const Module &M) const {
+  // @ HADEAN@ Both the medium and large code model use absolute references for
+  // data. Only doing this for large appears to be a bug in LLVM.
+
   // Large model never uses stubs.
-  if (TM.getCodeModel() == CodeModel::Large)
+  if (TM.getCodeModel() == CodeModel::Large || TM.getCodeModel() == CodeModel::Medium)
     return X86II::MO_NO_FLAG;
 
   if (TM.shouldAssumeDSOLocal(M, GV))
