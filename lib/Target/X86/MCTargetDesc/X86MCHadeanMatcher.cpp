@@ -7,24 +7,11 @@
 #include <cassert>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace llvm {
 
 namespace {
-
-class Holder : public MCOutputTarget {
-private:
-  std::unique_ptr<MCContext> context;
-  std::vector<MCInst> instructions;
-
-public:
-  Holder(MCContext *context);
-  void emitInstruction(const MCInst& instruction) override;
-  void emitLabel(MCSymbol *symbol) override;
-  MCContext &getContext() override;
-  size_t numInstructions() const;
-  const MCInst& getInstruction(const size_t index) const;
-};
 
 Holder::Holder(MCContext *_context) : context(_context) {
 }
