@@ -1,5 +1,5 @@
-#ifndef X86MCHADEAN_H
-#define X86MCHADEAN_H
+#ifndef X86MCHADEANEXPANDER_H
+#define X86MCHADEANEXPANDER_H
 
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -13,6 +13,20 @@ public:
   virtual void emitLabel(MCSymbol *symbol) = 0;
   virtual MCContext &getContext() = 0;
   virtual ~MCOutputTarget() {}
+};
+
+class MCOutputTargetStreamer : public MCOutputTarget {
+private:
+  MCStreamer &out;
+  MCSubtargetInfo &subtargetInfo;
+
+public:
+  static MCOutputTargetStreamer *create(MCStreamer& streamer, MCSubtargetInfo &info);
+
+  MCOutputTargetStreamer(MCStreamer& out, MCSubtargetInfo &subtargetInfo);
+  virtual void emitInstruction(const MCInst& instruction) override;
+  virtual void emitLabel(MCSymbol *symbol) override;
+  virtual MCContext &getContext() override;
 };
 
 class HadeanExpander
@@ -37,16 +51,14 @@ private:
   void emitAND64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg);
   void emitCMP64rr(MCOutputTarget &out, unsigned r1, unsigned r2);
   void emitMOV64r(MCOutputTarget& out, unsigned reg, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  void emitValidatedJump(MCOutputTarget &out);
   MCOperand buildExternalSymbolOperand(MCOutputTarget &out, const std::string &name);
   void addMemoryReference(MCOutputTarget &out, MCInst& instr, const unsigned baseReg,
     const unsigned indexReg, const unsigned scale, const int displacement);
 
 public:
-  static MCOutputTarget *createMCStreamerOutput(MCStreamer& streamer, MCSubtargetInfo &info);
-
   HadeanExpander();
   bool expandInstruction(MCOutputTarget& out, const MCInst &instr);
+  void emitValidatedJump(MCOutputTarget &out);
 };
 
 }

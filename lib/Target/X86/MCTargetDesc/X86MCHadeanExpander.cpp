@@ -14,18 +14,6 @@
 
 namespace llvm {
 
-class MCOutputTargetStreamer : public MCOutputTarget {
-private:
-  MCStreamer &out;
-  MCSubtargetInfo &subtargetInfo;
-
-public:
-  MCOutputTargetStreamer(MCStreamer& out, MCSubtargetInfo &subtargetInfo);
-  virtual void emitInstruction(const MCInst& instruction) override;
-  virtual void emitLabel(MCSymbol *symbol) override;
-  virtual MCContext &getContext() override;
-};
-
 MCOutputTargetStreamer::MCOutputTargetStreamer(MCStreamer &_out, MCSubtargetInfo &_subtargetInfo) :
   out(_out), subtargetInfo(_subtargetInfo) {
 }
@@ -47,7 +35,7 @@ HadeanExpander::HadeanExpander() :
   //xorValue(0) {
 }
 
-MCOutputTarget *HadeanExpander::createMCStreamerOutput(MCStreamer &streamer, MCSubtargetInfo &info) {
+MCOutputTargetStreamer *MCOutputTargetStreamer::create(MCStreamer &streamer, MCSubtargetInfo &info) {
   return new MCOutputTargetStreamer(streamer, info);
 }
 
