@@ -9,17 +9,49 @@
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "MCTargetDesc/X86MCHadean.h"
+#include "MCTargetDesc/X86MCHadeanExpander.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
 
 namespace llvm {
 
-HadeanExpander::HadeanExpander(const MCSubtargetInfo &_subtargetInfo) :
-  // subtargetInfo(_subtargetInfo), xorValue(0) {
-  subtargetInfo(_subtargetInfo), xorValue(0xf0f0f0f0f0f0f0f0) {
+class MCOutputTargetStreamer : public MCOutputTarget {
+private:
+  MCStreamer &out;
+  MCSubtargetInfo &subtargetInfo;
+
+public:
+  MCOutputTargetStreamer(MCStreamer& out, MCSubtargetInfo &subtargetInfo);
+  virtual void emitInstruction(const MCInst& instruction) override;
+  virtual void emitLabel(MCSymbol *symbol) override;
+  virtual MCContext &getContext() override;
+};
+
+MCOutputTargetStreamer::MCOutputTargetStreamer(MCStreamer &_out, MCSubtargetInfo &_subtargetInfo) :
+  out(_out), subtargetInfo(_subtargetInfo) {
 }
 
-bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &instr) {
+void MCOutputTargetStreamer::emitInstruction(const MCInst& instr) {
+  out.EmitInstruction(instr, subtargetInfo);
+}
+
+void MCOutputTargetStreamer::emitLabel(MCSymbol *sym) {
+  out.EmitLabel(sym);
+}
+
+MCContext &MCOutputTargetStreamer::getContext() {
+  return out.getContext();
+}
+
+HadeanExpander::HadeanExpander() :
+  xorValue(0xf0f0f0f0f0f0f0f0) {
+  //xorValue(0) {
+}
+
+MCOutputTarget *HadeanExpander::createMCStreamerOutput(MCStreamer &streamer, MCSubtargetInfo &info) {
+  return new MCOutputTargetStreamer(streamer, info);
+}
+
+bool HadeanExpander::expandInstruction(MCOutputTarget &out, const MCInst &instr) {
   const unsigned opcode = instr.getOpcode();
 
   switch (opcode)
@@ -43,7 +75,7 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &instr) {
   }
 }
 
-void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
+void HadeanExpander::emitHadeanCall(MCOutputTarget &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
   MCContext &context = out.getContext();
 
   // Create return label
@@ -57,7 +89,7 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCInst::const_iterato
     MCInstBuilder movBuilder(X86::MOV64ri);
     movBuilder.addReg(BTR);
     movBuilder.addExpr(labelReturnExpr);
-    out.EmitInstruction(movBuilder, subtargetInfo);
+    out.emitInstruction(movBuilder);
   }
 
   // Move return address to stack
@@ -70,20 +102,20 @@ void HadeanExpander::emitHadeanCall(MCStreamer &out, const MCInst::const_iterato
   emitValidatedJump(out);
 
   // Return from function call
-  out.EmitLabel(labelReturn);
+  out.emitLabel(labelReturn);
 }
 
-void HadeanExpander::emitHadeanRet(MCStreamer &out) {
+void HadeanExpander::emitHadeanRet(MCOutputTarget &out) {
   emitPOP64r(out, BTR);
   emitValidatedJump(out);
 }
 
-void HadeanExpander::emitHadeanJump(MCStreamer &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
+void HadeanExpander::emitHadeanJump(MCOutputTarget &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
   emitMOV64r(out, BTR, opBegin, opEnd);
   emitValidatedJump(out);
 }
 
-void HadeanExpander::emitMOV64r(MCStreamer& out, unsigned reg, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd)
+void HadeanExpander::emitMOV64r(MCOutputTarget& out, unsigned reg, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd)
 {
   if (opBegin == opEnd) {
     llvm_unreachable("No operand!");
@@ -94,13 +126,13 @@ void HadeanExpander::emitMOV64r(MCStreamer& out, unsigned reg, const MCInst::con
     movBuilder.addReg(BTR);
     for(MCInst::const_iterator opIter = opBegin; opIter != opEnd; ++opIter)
       movBuilder.addOperand(*opIter);
-    out.EmitInstruction(movBuilder, subtargetInfo);
+    out.emitInstruction(movBuilder);
   } else {
     llvm_unreachable("Unhandled operand type for indirect jump target.");
   }
 }
 
-void HadeanExpander::emitValidatedJump(MCStreamer &out) {
+void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   MCContext &context = out.getContext();
 
   const unsigned scratch = X86::RAX;
@@ -147,13 +179,13 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
     MCInstBuilder builder(X86::MOV64ri);
     builder.addReg(scratch);
     builder.addOperand(buildExternalSymbolOperand(out, "__executable_start"));
-    out.EmitInstruction(builder, subtargetInfo);
+    out.emitInstruction(builder);
   }
   emitCMP64rr(out, scratch, BTR);
   {
     MCInstBuilder builder(X86::JL_1);
     builder.addExpr(labelFailExpr);
-    out.EmitInstruction(builder, subtargetInfo);
+    out.emitInstruction(builder);
   }
 
   // Load text end
@@ -161,13 +193,13 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
     MCInstBuilder builder(X86::MOV64ri);
     builder.addReg(scratch);
     builder.addOperand(buildExternalSymbolOperand(out, "__etext"));
-    out.EmitInstruction(builder, subtargetInfo);
+    out.emitInstruction(builder);
   }
   emitCMP64rr(out, scratch, BTR);
   {
     MCInstBuilder builder(X86::JGE_1);
     builder.addExpr(labelFailExpr);
-    out.EmitInstruction(builder, subtargetInfo);
+    out.emitInstruction(builder);
   }
 
   // Restore scratch
@@ -176,96 +208,97 @@ void HadeanExpander::emitValidatedJump(MCStreamer &out) {
   // The indirect jump
   MCInstBuilder jumpBuilder(X86::JMP64r);
   jumpBuilder.addReg(BTR);
-  out.EmitInstruction(jumpBuilder, subtargetInfo);
+  out.emitInstruction(jumpBuilder);
 
   // Failure
-  out.EmitLabel(labelFail);
+  out.emitLabel(labelFail);
 
   const bool useExitFunction = false;
   if (useExitFunction) {
     MCInstBuilder movBuilder(X86::MOV32ri);
     movBuilder.addReg(X86::EDI);
     movBuilder.addImm(13);
-    out.EmitInstruction(movBuilder, subtargetInfo);
+    out.emitInstruction(movBuilder);
 
     MCInstBuilder callBuilder(X86::CALL64pcrel32);
     callBuilder.addOperand(buildExternalSymbolOperand(out, "exit"));
-    out.EmitInstruction(callBuilder, subtargetInfo);
+    out.emitInstruction(callBuilder);
   } else {
+    emitPUSH64r(out, BTR);
     MCInstBuilder jumpBuilder(X86::JMP_4);
     jumpBuilder.addOperand(buildExternalSymbolOperand(out, "__hadean_invalid_jump"));
-    out.EmitInstruction(jumpBuilder, subtargetInfo);
+    out.emitInstruction(jumpBuilder);
   }
 }
 
-void HadeanExpander::emitXOR64rr(MCStreamer &out, unsigned destReg, unsigned opReg) {
+void HadeanExpander::emitXOR64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg) {
   MCInstBuilder builder(X86::XOR64rr);
   builder.addReg(destReg);
   builder.addReg(destReg);
   builder.addReg(opReg);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitAND64rr(MCStreamer &out, unsigned destReg, unsigned opReg) {
+void HadeanExpander::emitAND64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg) {
   MCInstBuilder builder(X86::AND64rr);
   builder.addReg(destReg);
   builder.addReg(destReg);
   builder.addReg(opReg);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitMOV64rr(MCStreamer &out, unsigned dst, unsigned src) {
+void HadeanExpander::emitMOV64rr(MCOutputTarget &out, unsigned dst, unsigned src) {
   MCInstBuilder builder(X86::MOV64rr);
   builder.addReg(dst);
   builder.addReg(src);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitPUSH64r(MCStreamer &out, const unsigned reg) {
+void HadeanExpander::emitPUSH64r(MCOutputTarget &out, const unsigned reg) {
   MCInstBuilder builder(X86::PUSH64r);
   builder.addReg(reg);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitPOP64r(MCStreamer& out, const unsigned reg) {
+void HadeanExpander::emitPOP64r(MCOutputTarget& out, const unsigned reg) {
   MCInstBuilder builder(X86::POP64r);
   builder.addReg(reg);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitCMP64rr(MCStreamer &out, unsigned r1, unsigned r2) {
+void HadeanExpander::emitCMP64rr(MCOutputTarget &out, unsigned r1, unsigned r2) {
   MCInstBuilder builder(X86::CMP64rr);
   builder.addReg(r2);
   builder.addReg(r1);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitMOV64ri(MCStreamer &out, const unsigned reg, const uint64_t immediate) {
+void HadeanExpander::emitMOV64ri(MCOutputTarget &out, const unsigned reg, const uint64_t immediate) {
   MCInstBuilder builder(X86::MOV64ri);
   builder.addReg(reg);
   builder.addImm(immediate);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-void HadeanExpander::emitROL64ri(MCStreamer &out, const unsigned reg, const uint64_t immediate) {
+void HadeanExpander::emitROL64ri(MCOutputTarget &out, const unsigned reg, const uint64_t immediate) {
   MCInstBuilder builder(X86::ROL64ri);
   builder.addReg(reg);
   builder.addReg(reg);
   builder.addImm(immediate);
-  out.EmitInstruction(builder, subtargetInfo);
+  out.emitInstruction(builder);
 }
 
-MCOperand HadeanExpander::buildExternalSymbolOperand(MCStreamer &out, const std::string &name) {
+MCOperand HadeanExpander::buildExternalSymbolOperand(MCOutputTarget &out, const std::string &name) {
   MCContext &context = out.getContext();
   MCSymbol *sym = context.getOrCreateSymbol(name);
   assert(sym != nullptr);
   const MCSymbolRefExpr *symExpr = MCSymbolRefExpr::create(sym, context);
   assert(symExpr != nullptr);
-  out.EmitSymbolAttribute(sym, MCSA_ELF_TypeNoType);
+  //out.EmitSymbolAttribute(sym, MCSA_ELF_TypeNoType);
   return MCOperand::createExpr(symExpr);
 }
 
-void HadeanExpander::addMemoryReference(MCStreamer &out, MCInst& instr, const unsigned baseReg,
+void HadeanExpander::addMemoryReference(MCOutputTarget &out, MCInst& instr, const unsigned baseReg,
     const unsigned indexReg, const unsigned scale, const int displacement) {
   const unsigned segReg = 0;
   instr.addOperand(MCOperand::createReg(baseReg));
