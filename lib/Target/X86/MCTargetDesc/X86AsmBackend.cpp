@@ -441,7 +441,7 @@ public:
   }
 
   bool customExpandInst(const MCInst &instr, MCStreamer &out) override {
-    std::unique_ptr<MCOutputTarget> outputTarget(HadeanExpander::createMCStreamerOutput(out, *STI));
+    std::unique_ptr<MCOutputTarget> outputTarget(MCOutputTargetStreamer::create(out, *STI));
     return expander.expandInstruction(*outputTarget, instr);
   }
 };
