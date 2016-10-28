@@ -9,7 +9,7 @@
 
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86FixupKinds.h"
-#include "MCTargetDesc/X86MCHadean.h"
+#include "MCTargetDesc/X86MCHadeanExpander.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCELFObjectWriter.h"
@@ -431,17 +431,18 @@ public:
 class HadeanX86_64AsmBackend : public ELFX86_64AsmBackend {
 private:
   std::unique_ptr<MCSubtargetInfo> STI;
+  std::unique_ptr<MCOutputTarget> outputTarget;
   HadeanExpander expander;
 
 public:
   HadeanX86_64AsmBackend(const Target &T, uint8_t OSABI, StringRef CPU)
     : ELFX86_64AsmBackend(T, OSABI, CPU),
-      STI(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")),
-      expander(*STI) {
+      STI(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")) {
   }
 
   bool customExpandInst(const MCInst &instr, MCStreamer &out) override {
-    return expander.expandInstruction(out, instr);
+    std::unique_ptr<MCOutputTarget> outputTarget(HadeanExpander::createMCStreamerOutput(out, *STI));
+    return expander.expandInstruction(*outputTarget, instr);
   }
 };
 
