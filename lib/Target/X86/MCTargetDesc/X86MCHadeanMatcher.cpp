@@ -70,6 +70,8 @@ void HadeanMatcher::feedInstruction(const MCInst &instr) {
 
   if (matches(instr, holder->getInstruction(index)))
     ++index;
+  else
+    index = 0;
 }
 
 bool HadeanMatcher::isValidatedJump() const {
