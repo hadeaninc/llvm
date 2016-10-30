@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <deque>
 
 namespace llvm {
 
@@ -39,12 +40,18 @@ const MCInst& Holder::getInstruction(const size_t index) const {
 
 }
 
-bool HadeanMatcher::matches(const MCInst &ref, const MCInst &provided) {
+bool HadeanMatcher::matches(const MCInst &ref, const MCInst &provided) const {
   //FIXME: This needs to be made *much* smarter.
-  return ref.getOpcode() == provided.getOpcode();
+  if (ref.getOpcode() != provided.getOpcode())
+    return false;
+
+  if (ref.getNumOperands() != provided.getNumOperands())
+    return false;
+
+  return true;
 }
 
-HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple), index(0) {
+HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple) {
   std::string error;
 
   const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error);
@@ -62,20 +69,26 @@ HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple), index(0) 
   holder.reset(new Holder(context));
   HadeanExpander expander;
   expander.emitValidatedJump(*holder);
+  assert(holder->numInstructions() != 0);
 }
 
 void HadeanMatcher::feedInstruction(const MCInst &instr) {
-  if (index >= holder->numInstructions())
-    index = 0;
+  current.push_back(instr);
 
-  if (matches(instr, holder->getInstruction(index)))
-    ++index;
-  else
-    index = 0;
+  if (current.size() > holder->numInstructions())
+    current.pop_front();
 }
 
 bool HadeanMatcher::isValidatedJump() const {
-  return index == holder->numInstructions();
+  if (current.size() == holder->numInstructions()) {
+    for(size_t i = 0; i < current.size(); ++i) {
+      if (!matches(holder->getInstruction(i), current[i]))
+        return false;
+    }
+    return true;
+  } else {
+    return false;
+  }
 }
 
 }
