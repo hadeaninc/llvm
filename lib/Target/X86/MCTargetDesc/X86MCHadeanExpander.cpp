@@ -123,6 +123,7 @@ void HadeanExpander::emitMOV64r(MCOutputTarget& out, unsigned reg, const MCInst:
 void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   MCContext &context = out.getContext();
 
+  const bool useExitFunction = false;
   const unsigned scratch = X86::RAX;
 
   // Backup scratch
@@ -157,16 +158,22 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   }
 
   // Create failure label
-  MCSymbol *labelFail = context.createTempSymbol();
+  MCSymbol *labelFail = nullptr;
+  if (useExitFunction) {
+    labelFail = context.createTempSymbol();
+  } else {
+    labelFail = buildExternalSymbol(out, "__hadean_invalid_jump");
+  }
+
   assert(labelFail != nullptr);
   const MCExpr *labelFailExpr = MCSymbolRefExpr::create(labelFail, context);
-  assert(labelFailExpr != NULL);
+  assert(labelFailExpr != nullptr);
 
   // Load text start
   {
     MCInstBuilder builder(X86::MOV64ri);
     builder.addReg(scratch);
-    builder.addOperand(buildExternalSymbolOperand(out, "__executable_start"));
+    builder.addExpr(buildExternalSymbolExpr(out, "__executable_start"));
     out.emitInstruction(builder);
   }
   emitCMP64rr(out, scratch, BTR);
@@ -180,7 +187,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   {
     MCInstBuilder builder(X86::MOV64ri);
     builder.addReg(scratch);
-    builder.addOperand(buildExternalSymbolOperand(out, "__etext"));
+    builder.addExpr(buildExternalSymbolExpr(out, "__etext"));
     out.emitInstruction(builder);
   }
   emitCMP64rr(out, scratch, BTR);
@@ -199,23 +206,17 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   out.emitInstruction(jumpBuilder);
 
   // Failure
-  out.emitLabel(labelFail);
-
-  const bool useExitFunction = false;
   if (useExitFunction) {
+    out.emitLabel(labelFail);
+
     MCInstBuilder movBuilder(X86::MOV32ri);
     movBuilder.addReg(X86::EDI);
     movBuilder.addImm(13);
     out.emitInstruction(movBuilder);
 
     MCInstBuilder callBuilder(X86::CALL64pcrel32);
-    callBuilder.addOperand(buildExternalSymbolOperand(out, "exit"));
+    callBuilder.addExpr(buildExternalSymbolExpr(out, "exit"));
     out.emitInstruction(callBuilder);
-  } else {
-    emitPUSH64r(out, BTR);
-    MCInstBuilder jumpBuilder(X86::JMP_4);
-    jumpBuilder.addOperand(buildExternalSymbolOperand(out, "__hadean_invalid_jump"));
-    out.emitInstruction(jumpBuilder);
   }
 }
 
@@ -276,14 +277,20 @@ void HadeanExpander::emitROL64ri(MCOutputTarget &out, const unsigned reg, const 
   out.emitInstruction(builder);
 }
 
-MCOperand HadeanExpander::buildExternalSymbolOperand(MCOutputTarget &out, const std::string &name) {
+MCSymbol *HadeanExpander::buildExternalSymbol(MCOutputTarget &out, const std::string &name) {
   MCContext &context = out.getContext();
   MCSymbol *sym = context.getOrCreateSymbol(name);
   assert(sym != nullptr);
-  const MCSymbolRefExpr *symExpr = MCSymbolRefExpr::create(sym, context);
-  assert(symExpr != nullptr);
-  //out.EmitSymbolAttribute(sym, MCSA_ELF_TypeNoType);
-  return MCOperand::createExpr(symExpr);
+  return sym;
+}
+
+const MCExpr *HadeanExpander::buildExternalSymbolExpr(MCOutputTarget& out, const std::string &name) {
+  MCContext &context = out.getContext();
+  MCSymbol *sym = context.getOrCreateSymbol(name);
+  assert(sym != nullptr);
+  const MCExpr *expr = MCSymbolRefExpr::create(sym, context);
+  assert(expr != NULL);
+  return expr;
 }
 
 void HadeanExpander::addMemoryReference(MCOutputTarget &out, MCInst& instr, const unsigned baseReg,
