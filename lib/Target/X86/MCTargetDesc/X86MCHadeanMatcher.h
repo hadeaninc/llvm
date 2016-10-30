@@ -4,6 +4,7 @@
 #include <llvm/ADT/Triple.h>
 #include <llvm/MC/MCInst.h>
 #include <memory>
+#include <deque>
 #include "X86MCHadeanExpander.h"
 
 namespace llvm {
@@ -30,8 +31,8 @@ class HadeanMatcher {
 private:
   Triple triple;
   std::unique_ptr<Holder> holder;
-  size_t index;
-  bool matches(const MCInst &ref, const MCInst &provided);
+  std::deque<MCInst> current;
+  bool matches(const MCInst &ref, const MCInst &provided) const;
 
 public:
   HadeanMatcher(const Triple& triple);
