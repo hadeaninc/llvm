@@ -178,7 +178,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   }
   emitCMP64rr(out, scratch, BTR);
   {
-    MCInstBuilder builder(X86::JL_1);
+    MCInstBuilder builder(X86::JL_4);
     builder.addExpr(labelFailExpr);
     out.emitInstruction(builder);
   }
@@ -192,7 +192,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   }
   emitCMP64rr(out, scratch, BTR);
   {
-    MCInstBuilder builder(X86::JGE_1);
+    MCInstBuilder builder(X86::JGE_4);
     builder.addExpr(labelFailExpr);
     out.emitInstruction(builder);
   }
