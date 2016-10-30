@@ -51,7 +51,8 @@ private:
   void emitAND64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg);
   void emitCMP64rr(MCOutputTarget &out, unsigned r1, unsigned r2);
   void emitMOV64r(MCOutputTarget& out, unsigned reg, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  MCOperand buildExternalSymbolOperand(MCOutputTarget &out, const std::string &name);
+  MCSymbol *buildExternalSymbol(MCOutputTarget &out, const std::string &name);
+  const MCExpr *buildExternalSymbolExpr(MCOutputTarget &out, const std::string &name);
   void addMemoryReference(MCOutputTarget &out, MCInst& instr, const unsigned baseReg,
     const unsigned indexReg, const unsigned scale, const int displacement);
 
