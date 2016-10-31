@@ -46,7 +46,7 @@ bool HadeanExpander::expandInstruction(MCOutputTarget &out, const MCInst &instr)
   {
     case X86::HAD_CALL64r:
     case X86::HAD_CALL64m: {
-      emitHadeanCall(out, instr.begin(), instr.end());
+      emitHadeanCallIndirect(out, instr.begin(), instr.end());
       return true;
     }
     case X86::HAD_RET64: {
@@ -58,12 +58,16 @@ bool HadeanExpander::expandInstruction(MCOutputTarget &out, const MCInst &instr)
       emitHadeanJump(out, instr.begin(), instr.end());
       return true;
     }
+    case X86::CALL64pcrel32: {
+      emitHadeanCallDirect(out, instr.begin(), instr.end());
+      return true;
+    }
     default:
       return false;
   }
 }
 
-void HadeanExpander::emitHadeanCall(MCOutputTarget &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
+void HadeanExpander::emitHadeanCallIndirect(MCOutputTarget &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
   MCContext &context = out.getContext();
 
   // Create return label
@@ -88,6 +92,38 @@ void HadeanExpander::emitHadeanCall(MCOutputTarget &out, const MCInst::const_ite
 
   // Decode, validate and jump to target
   emitValidatedJump(out);
+
+  // Return from function call
+  out.emitLabel(labelReturn);
+}
+
+void HadeanExpander::emitHadeanCallDirect(MCOutputTarget &out, const MCInst::const_iterator opBegin, const MCInst::const_iterator opEnd) {
+  assert(std::next(opBegin) == opEnd);
+  assert(opBegin->isImm() || opBegin->isExpr());
+
+  MCContext &context = out.getContext();
+
+  // Create return label
+  MCSymbol *labelReturn = context.createTempSymbol();
+  assert(labelReturn != nullptr);
+  const MCExpr *labelReturnExpr = MCSymbolRefExpr::create(labelReturn, context);
+  assert(labelReturnExpr != NULL);
+
+  // Move return address to BTR
+  {
+    MCInstBuilder movBuilder(X86::MOV64ri);
+    movBuilder.addReg(BTR);
+    movBuilder.addExpr(labelReturnExpr);
+    out.emitInstruction(movBuilder);
+  }
+
+  // Move return address to stack
+  emitPUSH64r(out, BTR);
+
+  // Direct jump
+  MCInstBuilder jumpBuilder(X86::JMP_4);
+  jumpBuilder.addOperand(*opBegin);
+  out.emitInstruction(jumpBuilder);
 
   // Return from function call
   out.emitLabel(labelReturn);
