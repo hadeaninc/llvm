@@ -129,7 +129,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   // Backup scratch
   emitPUSH64r(out, scratch);
 
-  const bool smarterObfuscation = false;
+  const bool smarterObfuscation = true;
   if (!smarterObfuscation) {
     // Decode the branch address
     emitMOV64ri(out, scratch, xorValue);
@@ -144,7 +144,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
     emitPUSH64r(out, maskedReg);
     emitMOV64ri(out, maskReg, 0x5555555555555555ull);
 
-    for(int round = 0; round < 5; ++round) {
+    for(int round = 0; round <= 4; ++round) {
       const int shift = (2 << round) - 1;
       for(int i = 0; i < 2; ++i) {
         emitMOV64rr(out, maskedReg, BTR);
