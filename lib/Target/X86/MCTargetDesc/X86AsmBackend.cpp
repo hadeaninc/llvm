@@ -899,3 +899,20 @@ MCAsmBackend *llvm::createX86_64AsmBackend(const Target &T,
     return new ELFX86_X32AsmBackend(T, OSABI, CPU);
   return new ELFX86_64AsmBackend(T, OSABI, CPU);
 }
+
+
+// @HADEAN@
+// This is a hack to get relaxed op-codes until we can figure out how to
+// instantiate the assembler backend.
+
+namespace llvm {
+
+namespace X86 {
+
+unsigned getRelaxedOpcode(const MCInst &Inst) {
+  return ::getRelaxedOpcode(Inst, false);
+}
+
+}
+
+}

@@ -1,5 +1,6 @@
 #include "X86MCHadeanMatcher.h"
 #include "X86MCHadeanExpander.h"
+#include "X86BaseInfo.h"
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/MC/MCContext.h>
 #include <llvm/ADT/Triple.h>
@@ -41,7 +42,10 @@ const MCInst& Holder::getInstruction(const size_t index) const {
 }
 
 bool HadeanMatcher::matches(const MCInst &ref, const MCInst &provided) const {
-  if (ref.getOpcode() != provided.getOpcode())
+  const unsigned relaxedRef = X86::getRelaxedOpcode(ref);
+  const unsigned relaxedProvided = X86::getRelaxedOpcode(provided);
+
+  if (relaxedRef != relaxedProvided)
     return false;
 
   if (ref.getNumOperands() != provided.getNumOperands())
