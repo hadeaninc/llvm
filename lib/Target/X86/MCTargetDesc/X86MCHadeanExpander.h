@@ -39,7 +39,8 @@ private:
 
   void emitHadeanRet(MCOutputTarget &out);
   void emitHadeanJump(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  void emitHadeanCall(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
+  void emitHadeanCallDirect(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
+  void emitHadeanCallIndirect(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
   void emitPUSH64r(MCOutputTarget &out, unsigned reg);
   void emitPOP64r(MCOutputTarget &out, unsigned reg);
   void emitPUSHXMMr(MCOutputTarget &out, unsigned reg);
