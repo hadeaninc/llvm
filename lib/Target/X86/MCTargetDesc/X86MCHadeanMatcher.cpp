@@ -41,14 +41,39 @@ const MCInst& Holder::getInstruction(const size_t index) const {
 }
 
 bool HadeanMatcher::matches(const MCInst &ref, const MCInst &provided) const {
-  //FIXME: This needs to be made *much* smarter.
   if (ref.getOpcode() != provided.getOpcode())
     return false;
 
   if (ref.getNumOperands() != provided.getNumOperands())
     return false;
 
+  for(size_t op = 0; op < ref.getNumOperands(); ++op) {
+    if (!matches(ref.getOperand(op), provided.getOperand(op)))
+        return false;
+  }
+
   return true;
+}
+
+bool HadeanMatcher::matches(const MCOperand &ref, const MCOperand &provided) const {
+  if (ref.isInst())
+    return provided.isInst() && matches(*ref.getInst(), *provided.getInst());
+
+  if (ref.isReg())
+    return provided.isReg() && ref.getReg() == provided.getReg();
+
+  if (ref.isFPImm())
+    return provided.isFPImm() && ref.getFPImm() == provided.getFPImm();
+
+  if (ref.isImm())
+    return provided.isImm() && ref.getImm() == provided.getImm();
+
+  //FIXME: This needs to resolve expressions to values
+  if (ref.isExpr())
+    return provided.isImm();
+
+  assert(false && "Unhandled assembly operand in HadeanMatcher.");
+  return false;
 }
 
 HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple) {
