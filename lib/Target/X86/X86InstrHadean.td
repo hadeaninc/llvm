@@ -1,8 +1,9 @@
 class HadeanPI64<dag outs, dag ins, string asm>
   : I<0, CustomFrm, outs, ins, asm, []>, Requires<[IsHadean, In64BitMode]>;
 
+let Defs = [EFLAGS], isAsmParserOnly = 1 in {
 
-let isCall = 1, isAsmParserOnly = 1, Uses = [RSP] in {
+let isCall = 1, Uses = [RSP] in {
   def HAD_CALL64r       : HadeanPI64<(outs), (ins GR64:$dst),
                         "hadcall\t$dst">;
   def HAD_CALL64m       : HadeanPI64<(outs), (ins i64mem:$dst),
@@ -10,14 +11,15 @@ let isCall = 1, isAsmParserOnly = 1, Uses = [RSP] in {
 }
 
 let isTerminator = 1, isReturn = 1, isBarrier = 1,
-    hasCtrlDep = 1, FPForm = SpecialFP, isAsmParserOnly = 1 in {
+    hasCtrlDep = 1, FPForm = SpecialFP in {
   def HAD_RET64  : HadeanPI64<(outs), (ins), "hadret">;
 }
 
-let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1, isAsmParserOnly = 1 in {
+let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
   def HAD_JMP64r :  HadeanPI64<(outs), (ins GR64:$dst),
                     "hadjmp\t$dst">;
   def HAD_JMP64m :  HadeanPI64<(outs), (ins i64mem:$dst), 
                     "hadjmp\t$dst">;
 }
 
+}
