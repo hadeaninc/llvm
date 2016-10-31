@@ -33,6 +33,7 @@ private:
   std::unique_ptr<Holder> holder;
   std::deque<MCInst> current;
   bool matches(const MCInst &ref, const MCInst &provided) const;
+  bool matches(const MCOperand &ref, const MCOperand &provided) const;
 
 public:
   HadeanMatcher(const Triple& triple);
