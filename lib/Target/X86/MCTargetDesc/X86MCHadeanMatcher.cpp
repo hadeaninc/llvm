@@ -80,20 +80,16 @@ bool HadeanMatcher::matches(const MCOperand &ref, const MCOperand &provided) con
   return false;
 }
 
-HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple) {
+HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple), progress(0) {
   std::string error;
 
-  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error);
-  assert(target != nullptr);
+  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error); assert(target != nullptr);
 
-  MCRegisterInfo *MRI = target->createMCRegInfo(triple.getTriple());
-  assert(MRI != nullptr);
+  MCRegisterInfo *MRI = target->createMCRegInfo(triple.getTriple()); assert(MRI != nullptr);
 
-  MCAsmInfo *MAI = target->createMCAsmInfo(*MRI, triple.getTriple());
-  assert(MAI != nullptr);
+  MCAsmInfo *MAI = target->createMCAsmInfo(*MRI, triple.getTriple()); assert(MAI != nullptr);
 
-  MCContext *context = new MCContext(MAI, MRI, nullptr);
-  assert(context != nullptr);
+  MCContext *context = new MCContext(MAI, MRI, nullptr); assert(context != nullptr);
 
   holder.reset(new Holder(context));
   HadeanExpander expander;
@@ -101,22 +97,17 @@ HadeanMatcher::HadeanMatcher(const Triple &_triple) : triple(_triple) {
   assert(holder->numInstructions() != 0);
 }
 
-void HadeanMatcher::feedInstruction(const MCInst &instr) {
-  current.push_back(instr);
-
-  if (current.size() > holder->numInstructions())
-    current.pop_front();
-}
-
-bool HadeanMatcher::isValidatedJump() const {
-  if (current.size() == holder->numInstructions()) {
-    for(size_t i = 0; i < current.size(); ++i) {
-      if (!matches(holder->getInstruction(i), current[i]))
-        return false;
+enum HadeanMatcherState HadeanMatcher::feedInstruction(const MCInst &instr) {
+  if (matches(holder->getInstruction(progress), instr)) {
+    progress++;
+    if (progress == holder->numInstructions()) {
+      progress = 0;
+      return HadeanMatcherStateValid;
     }
-    return true;
+    return HadeanMatcherStateUnknown;
   } else {
-    return false;
+    progress = 0;
+    return HadeanMatcherStateInvalid;
   }
 }
 
