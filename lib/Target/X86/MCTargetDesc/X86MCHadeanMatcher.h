@@ -27,18 +27,23 @@ public:
 
 }
 
+enum HadeanMatcherState {
+  HadeanMatcherStateUnknown,
+  HadeanMatcherStateInvalid,
+  HadeanMatcherStateValid
+};
+
 class HadeanMatcher {
 private:
   Triple triple;
   std::unique_ptr<Holder> holder;
-  std::deque<MCInst> current;
+  size_t progress;
   bool matches(const MCInst &ref, const MCInst &provided) const;
   bool matches(const MCOperand &ref, const MCOperand &provided) const;
 
 public:
   HadeanMatcher(const Triple& triple);
-  void feedInstruction(const MCInst &instr);
-  bool isValidatedJump() const;
+  enum HadeanMatcherState feedInstruction(const MCInst &instr);
 };
 
 }
