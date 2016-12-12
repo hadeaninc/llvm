@@ -31,8 +31,8 @@ MCContext &MCOutputTargetStreamer::getContext() {
 }
 
 HadeanExpander::HadeanExpander() :
-  xorValue(0xf0f0f0f0f0f0f0f0) {
-  //xorValue(0) {
+  // xorValue(0xf0f0f0f0f0f0f0f0) {
+  xorValue(0) {
 }
 
 MCOutputTargetStreamer *MCOutputTargetStreamer::create(MCStreamer &streamer, MCSubtargetInfo &info) {
@@ -165,7 +165,7 @@ void HadeanExpander::emitValidatedJump(MCOutputTarget &out) {
   // Backup scratch
   emitPUSH64r(out, scratch);
 
-  const bool smarterObfuscation = true;
+  const bool smarterObfuscation = false;
   if (!smarterObfuscation) {
     // Decode the branch address
     emitMOV64ri(out, scratch, xorValue);
