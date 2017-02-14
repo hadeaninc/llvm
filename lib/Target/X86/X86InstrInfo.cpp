@@ -3084,7 +3084,7 @@ X86InstrInfo::convertToThreeAddress(MachineFunction::iterator &MFI,
     NewMI = addOffset(BuildMI(MF, MI.getDebugLoc(), get(X86::LEA64r))
                           .addOperand(Dest)
                           .addOperand(Src),
-                      MI.getOperand(2).getImm());
+                      MI.getOperand(2));
     break;
   case X86::ADD32ri:
   case X86::ADD32ri8:
@@ -3107,7 +3107,7 @@ X86InstrInfo::convertToThreeAddress(MachineFunction::iterator &MFI,
     if (ImplicitOp.getReg() != 0)
       MIB.addOperand(ImplicitOp);
 
-    NewMI = addOffset(MIB, MI.getOperand(2).getImm());
+    NewMI = addOffset(MIB, MI.getOperand(2));
     break;
   }
   case X86::ADD16ri:
@@ -3121,7 +3121,7 @@ X86InstrInfo::convertToThreeAddress(MachineFunction::iterator &MFI,
     NewMI = addOffset(BuildMI(MF, MI.getDebugLoc(), get(X86::LEA16r))
                           .addOperand(Dest)
                           .addOperand(Src),
-                      MI.getOperand(2).getImm());
+                      MI.getOperand(2));
     break;
   }
 
