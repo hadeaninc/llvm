@@ -1287,7 +1287,7 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
     const X86FrameLowering* FrameLowering =
         MF->getSubtarget<X86Subtarget>().getFrameLowering();
     bool hasFP = FrameLowering->hasFP(*MF);
-
+    
     // TODO: This is needed only if we require precise CFA.
     bool HasActiveDwarfFrame = OutStreamer->getNumFrameInfos() &&
                                !OutStreamer->getDwarfFrameInfos().back().End;

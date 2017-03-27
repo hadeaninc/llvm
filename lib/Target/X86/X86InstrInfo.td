@@ -890,7 +890,6 @@ def FavorMemIndirectCall  : Predicate<"!Subtarget->callRegIndirect()">;
 def NotSlowIncDec : Predicate<"!Subtarget->slowIncDec()">;
 def HasFastMem32 : Predicate<"!Subtarget->isUnalignedMem32Slow()">;
 def HasMFence    : Predicate<"Subtarget->hasMFence()">;
-def NotHadean    : Predicate<"!Subtarget->isTargetHadean()">; // @HADEAN@
 
 //===----------------------------------------------------------------------===//
 // X86 Instruction Format Definitions.
@@ -2421,7 +2420,7 @@ let SchedRW = [ WriteSystem ] in {
   }
 
   let Uses = [ ECX, EAX, EBX ] in {
-    def MWAITXrrr : I<0x01, MRM_FB, (outs), (ins), "mwaitx",
+    def MWAITXrrr : I<0x01, MRM_FB, (outs), (ins), "mwaitx", 
                     [(int_x86_mwaitx ECX, EAX, EBX)], IIC_SSE_MWAITX>,
                     TB, Requires<[ HasMWAITX ]>;
   }

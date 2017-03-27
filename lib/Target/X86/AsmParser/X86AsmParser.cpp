@@ -1858,7 +1858,7 @@ std::unique_ptr<X86Operand> X86AsmParser::ParseIntelOperand() {
   if (!ParseRegister(RegNo, Start, End)) {
     // If this is a segment register followed by a ':', then this is the start
     // of a segment override, otherwise this is a normal register reference.
-    // In case it is a normal register and there is ptr in the operand this
+    // In case it is a normal register and there is ptr in the operand this 
     // is an error
     if (getLexer().isNot(AsmToken::Colon)){
       if (PtrInOperand){
@@ -1867,7 +1867,7 @@ std::unique_ptr<X86Operand> X86AsmParser::ParseIntelOperand() {
       }
       return X86Operand::CreateReg(RegNo, Start, End);
     }
-
+    
     return ParseIntelSegmentOverride(/*SegReg=*/RegNo, Start, Size);
   }
 
@@ -2400,11 +2400,11 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   bool HadVerifyError = false;
 
   // Append default arguments to "ins[bwld]"
-  if (Name.startswith("ins") &&
+  if (Name.startswith("ins") && 
       (Operands.size() == 1 || Operands.size() == 3) &&
       (Name == "insb" || Name == "insw" || Name == "insl" || Name == "insd" ||
        Name == "ins")) {
-
+    
     AddDefaultSrcDestOperands(TmpOperands,
                               X86Operand::CreateReg(X86::DX, NameLoc, NameLoc),
                               DefaultMemDIOperand(NameLoc));
@@ -2412,7 +2412,7 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   }
 
   // Append default arguments to "outs[bwld]"
-  if (Name.startswith("outs") &&
+  if (Name.startswith("outs") && 
       (Operands.size() == 1 || Operands.size() == 3) &&
       (Name == "outsb" || Name == "outsw" || Name == "outsl" ||
        Name == "outsd" || Name == "outs")) {
@@ -2948,7 +2948,7 @@ bool X86AsmParser::parseDirectiveEven(SMLoc L) {
   const MCSection *Section = getStreamer().getCurrentSection().first;
   if (getLexer().isNot(AsmToken::EndOfStatement)) {
     TokError("unexpected token in directive");
-    return false;
+    return false;  
   }
   if (!Section) {
     getStreamer().InitSections(false);
