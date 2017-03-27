@@ -430,22 +430,20 @@ public:
 // @HADEAN@
 class HadeanX86_64AsmBackend : public ELFX86_64AsmBackend {
 private:
-  std::unique_ptr<MCSubtargetInfo> STI;
-  std::unique_ptr<MCOutputTarget> outputTarget;
-  HadeanExpander expander;
+  std::unique_ptr<MCSubtargetInfo> STI_;
+  HadeanExpander expander_;
 
 public:
   HadeanX86_64AsmBackend(const Target &T, uint8_t OSABI, StringRef CPU)
     : ELFX86_64AsmBackend(T, OSABI, CPU),
-      STI(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")) {
-  }
+      STI_(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")),
+      expander_(*STI_) {}
 
   bool customExpandInst(const MCInst &instr, MCStreamer &out) override {
-    std::unique_ptr<MCOutputTarget> outputTarget(MCOutputTargetStreamer::create(out, *STI));
-    return expander.expandInstruction(*outputTarget, instr);
+    out.EmitBundleAlignMode(HadeanExpander::kBundleSizeInBits);  // TODO: move to MCStreamer init
+    return expander_.expandInstruction(out, instr);
   }
 };
-
 
 class WindowsX86AsmBackend : public X86AsmBackend {
   bool Is64Bit;

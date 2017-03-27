@@ -4,63 +4,33 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCStreamer.h"
+#include "X86Subtarget.h"
 
 namespace llvm {
 
-class MCOutputTarget {
+class HadeanExpander {
 public:
-  virtual void emitInstruction(const MCInst& instruction) = 0;
-  virtual void emitLabel(MCSymbol *symbol) = 0;
-  virtual MCContext &getContext() = 0;
-  virtual ~MCOutputTarget() {}
-};
+  HadeanExpander(MCSubtargetInfo& STI) : STI_(STI), emitRaw_(false) {}
+  bool expandInstruction(MCStreamer& out, const MCInst &instr);
 
-class MCOutputTargetStreamer : public MCOutputTarget {
+  static constexpr uint32_t kBundleSizeInBits = 5;
+  static constexpr uint32_t kBundleSizeInBytes = (1u << kBundleSizeInBits);
+
+  static constexpr unsigned kCodeBaseRegister = X86::R15;
+
 private:
-  MCStreamer &out;
-  MCSubtargetInfo &subtargetInfo;
+  MCSubtargetInfo& STI_;
 
-public:
-  static MCOutputTargetStreamer *create(MCStreamer& streamer, MCSubtargetInfo &info);
+  // Emitting instruction recursively attempts to expand it.
+  // When `emitRaw_` is set to true, skip re-expansion.
+  bool emitRaw_;
 
-  MCOutputTargetStreamer(MCStreamer& out, MCSubtargetInfo &subtargetInfo);
-  virtual void emitInstruction(const MCInst& instruction) override;
-  virtual void emitLabel(MCSymbol *symbol) override;
-  virtual MCContext &getContext() override;
-};
+  void EmitDirectCall(MCStreamer &out, const MCInst &inst);
+  void EmitIndirectCall(MCStreamer &out, const MCInst &inst);
+  void EmitJump(MCStreamer &out, const MCInst &inst);
+  void EmitReturn(MCStreamer &out, const MCInst &inst);
 
-class HadeanExpander
-{
-private:
-  // The branch target register reserved for indirect jumps
-  static const unsigned BTR;
-
-  const uint64_t xorValue;
-
-  void emitHadeanRet(MCOutputTarget &out);
-  void emitHadeanJump(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  void emitHadeanCallDirect(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  void emitHadeanCallIndirect(MCOutputTarget &out, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  void emitPUSH64r(MCOutputTarget &out, unsigned reg);
-  void emitPOP64r(MCOutputTarget &out, unsigned reg);
-  void emitPUSHXMMr(MCOutputTarget &out, unsigned reg);
-  void emitPOPXMMr(MCOutputTarget &out, unsigned reg);
-  void emitMOV64ri(MCOutputTarget &out, unsigned reg, uint64_t value);
-  void emitROL64ri(MCOutputTarget &out, unsigned reg, uint64_t value);
-  void emitMOV64rr(MCOutputTarget &out, unsigned dst, unsigned src);
-  void emitXOR64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg);
-  void emitAND64rr(MCOutputTarget &out, unsigned destReg, unsigned opReg);
-  void emitCMP64rr(MCOutputTarget &out, unsigned r1, unsigned r2);
-  void emitMOV64r(MCOutputTarget& out, unsigned reg, MCInst::const_iterator opStart, MCInst::const_iterator opEnd);
-  MCSymbol *buildExternalSymbol(MCOutputTarget &out, const std::string &name);
-  const MCExpr *buildExternalSymbolExpr(MCOutputTarget &out, const std::string &name);
-  void addMemoryReference(MCOutputTarget &out, MCInst& instr, const unsigned baseReg,
-    const unsigned indexReg, const unsigned scale, const int displacement);
-
-public:
-  HadeanExpander();
-  bool expandInstruction(MCOutputTarget& out, const MCInst &instr);
-  void emitValidatedJump(MCOutputTarget &out);
+  void EmitSafeBranch(MCStreamer &out, const MCInst &inst, unsigned targetReg, bool isCall);
 };
 
 }

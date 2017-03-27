@@ -311,7 +311,10 @@ void X86PassConfig::addPreRegAlloc() {
   }
 
   addPass(createX86WinAllocaExpander());
-  //addPass(createX86HadeanExpandJumps()); // @HADEAN@
+
+  if (Triple(TM->getTargetTriple()).isVendorHadean()) {
+    addPass(createX86HadeanRewriteControl());
+  }
 }
 
 void X86PassConfig::addPostRegAlloc() {
@@ -331,9 +334,5 @@ void X86PassConfig::addPreEmitPass() {
     addPass(createX86FixupBWInsts());
     addPass(createX86PadShortFunctions());
     addPass(createX86FixupLEAs());
-  }
-
-  if (Triple(TM->getTargetTriple()).isVendorHadean()) {
-    addPass(createX86HadeanRewriteControl());
   }
 }
