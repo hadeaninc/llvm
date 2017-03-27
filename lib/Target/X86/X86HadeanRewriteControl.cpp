@@ -15,48 +15,25 @@ namespace {
 class X86HadeanRewriteControl : public MachineFunctionPass {
 public:
   static char ID;
-  bool hasBeenRun;
 
-  X86HadeanRewriteControl() : MachineFunctionPass(ID), hasBeenRun(false) {}
+  X86HadeanRewriteControl() : MachineFunctionPass(ID) {}
   bool runOnMachineFunction(MachineFunction &fuction) override;
   const char *getPassName() const override;
 
 private:
-  static bool HasControlFlow(const MachineInstr &MI);
-  static bool IsDirectBranch(const MachineInstr &MI);
-
-  bool rewriteMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter);
+  bool rewriteMI(MachineBasicBlock &MBB, MachineInstr &MI);
   bool rewriteMBB(MachineBasicBlock &MBB);
 };
 
 char X86HadeanRewriteControl::ID = 0;
 
-}
+}  // anonymous namespace
 
 const char *X86HadeanRewriteControl::getPassName() const {
     return "Hadean control flow instruction rewriter";
 }
 
-bool X86HadeanRewriteControl::HasControlFlow(const MachineInstr &MI) {
- return MI.getDesc().isBranch() ||
-        MI.getDesc().isCall() ||
-        MI.getDesc().isReturn() ||
-        MI.getDesc().isTerminator() ||
-        MI.getDesc().isBarrier();
-}
-
-bool X86HadeanRewriteControl::IsDirectBranch(const MachineInstr &MI) {
-  return  MI.getDesc().isBranch() &&
-         !MI.getDesc().isIndirectBranch();
-}
-
-
 bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
-  if (!hasBeenRun) {
-    hasBeenRun = true;
-    printf("%s is active.\n", getPassName());
-  }
-
   bool modified = false;
   for (MachineBasicBlock &MBB : MF)
     modified |= rewriteMBB(MBB);
@@ -65,70 +42,62 @@ bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
 }
 
 bool X86HadeanRewriteControl::rewriteMBB(MachineBasicBlock &MBB) {
+  // TODO: Do only for taken MBBs.
+  MBB.setAlignment(5);
+
   bool modified = false;
   // MBBI may be invalidated by the expansion.
   MachineBasicBlock::iterator MBBIter = MBB.begin(), MBBEnd = MBB.end();
   while (MBBIter != MBBEnd) {
     const MachineBasicBlock::iterator MBBIterNext = std::next(MBBIter);
-    modified |= rewriteMI(MBB, MBBIter);
+    modified |= rewriteMI(MBB, *MBBIter);
     MBBIter = MBBIterNext;
   }
 
   return modified;
 }
 
-bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBIter) {
-  MachineInstr &MI = *MBBIter;
+bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineInstr &MI) {
+  // Assume that first 5 operands are in memory addressing format.
+  static constexpr unsigned kNumMemOperands = 5;
 
-  if (!HasControlFlow(MI))
-    return false;
+  unsigned newOpcode = 0;
+  const TargetRegisterClass *regClass = nullptr;
 
-  if (IsDirectBranch(MI))
-    return false;
+  switch (MI.getOpcode()) {
+   case X86::CALL64m:      newOpcode = X86::CALL64r;      regClass = &X86::GR64RegClass;    break;
+   case X86::JMP64m:       newOpcode = X86::JMP64r;       regClass = &X86::GR64RegClass;    break;
+   case X86::TCRETURNmi64: newOpcode = X86::TCRETURNri64; regClass = &X86::GR64_TCRegClass; break;
+   default:                return false;
+  }
 
   MachineFunction &MF = *MBB.getParent();
   const X86Subtarget &STI = static_cast<const X86Subtarget &>(MF.getSubtarget());
   const X86InstrInfo &TII = *STI.getInstrInfo();
   const DebugLoc dl = MI.getDebugLoc();
-  const unsigned opcode = MI.getOpcode();
-  unsigned newOpcode = 0;
 
-  switch (opcode) {
-    case X86::TRAP:           return false; // TODO: Enabled for now to build musl
-    case X86::CALL64pcrel32:  return false; // Indirect but statically determinable
-    case X86::TAILJMPd64:     return false; // Indirect but statically determinable
-    case X86::CALL64r:        newOpcode = X86::HAD_CALL64r; break;
-    case X86::CALL64m:        newOpcode = X86::HAD_CALL64m; break;
-    case X86::JMP64r:         newOpcode = X86::HAD_JMP64r;  break;
-    case X86::JMP64m:         newOpcode = X86::HAD_JMP64m;  break;
-    case X86::TAILJMPr64:     newOpcode = X86::HAD_JMP64r;  break;
-    case X86::TAILJMPm64:     newOpcode = X86::HAD_JMP64m;  break;
-    default: break;
+  // Create a new virtual register
+  unsigned vreg = MBB.getParent()->getRegInfo().createVirtualRegister(regClass);
+
+  // Move the target address to `vreg`
+  auto instMOV = BuildMI(MBB, &MI, dl, TII.get(X86::MOV64rm));
+  instMOV.addReg(vreg, RegState::Define);
+  for (unsigned i = 0; i < kNumMemOperands; ++i) {
+    // Copy mem access operands to the MOV.
+    instMOV.addOperand(MI.getOperand(i));
   }
 
-  if (newOpcode != 0) {
-    MachineInstrBuilder builder = BuildMI(MBB, MBBIter, dl, TII.get(newOpcode));
-    for(size_t i = 0; i < MI.getNumOperands(); ++i)
-      builder.addOperand(MI.getOperand(i));
-
-    MI.eraseFromParent();
-    return true;
+  // Emit a register branch to the target in `vreg`.
+  auto instJMP = BuildMI(MBB, &MI, dl, TII.get(newOpcode));
+  instJMP.addReg(vreg, RegState::Kill);
+  for (unsigned i = kNumMemOperands; i < MI.getNumOperands(); ++i) {
+    // Copy "other" operands to the new instruction. This includes
+    // RET stack adjustment for TCRETURN.
+    instJMP.addOperand(MI.getOperand(i));
   }
 
-  switch (opcode) {
-    case X86::RETQ: newOpcode = X86::HAD_RET64;   break;
-    default: break;
-  }
-
-  if (newOpcode != 0) {
-    BuildMI(MBB, MBBIter, dl, TII.get(newOpcode));
-    MI.eraseFromParent();
-    return true;
-  }
-
-  MI.dump();
-  report_fatal_error("Unhandled control-flow instruction in Hadean pass.");
-  return false;
+  MI.eraseFromParent();
+  return true;
 }
 
 FunctionPass *llvm::createX86HadeanRewriteControl() {
