@@ -300,7 +300,7 @@ X86InstrInfo::X86InstrInfo(X86Subtarget &STI)
     { X86::BT16ri8,     X86::BT16mi8,       TB_FOLDED_LOAD },
     { X86::BT32ri8,     X86::BT32mi8,       TB_FOLDED_LOAD },
     { X86::BT64ri8,     X86::BT64mi8,       TB_FOLDED_LOAD },
-    { X86::CALL32r,     X86::CALL32m,       static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
+    { X86::CALL32r,     X86::CALL32m,       TB_FOLDED_LOAD },
     { X86::CALL64r,     X86::CALL64m,       static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
     { X86::CMP16ri,     X86::CMP16mi,       TB_FOLDED_LOAD },
     { X86::CMP16ri8,    X86::CMP16mi8,      TB_FOLDED_LOAD },
@@ -326,7 +326,7 @@ X86InstrInfo::X86InstrInfo(X86Subtarget &STI)
     { X86::IMUL32r,     X86::IMUL32m,       TB_FOLDED_LOAD },
     { X86::IMUL64r,     X86::IMUL64m,       TB_FOLDED_LOAD },
     { X86::IMUL8r,      X86::IMUL8m,        TB_FOLDED_LOAD },
-    { X86::JMP32r,      X86::JMP32m,        static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
+    { X86::JMP32r,      X86::JMP32m,        TB_FOLDED_LOAD },
     { X86::JMP64r,      X86::JMP64m,        static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
     { X86::MOV16ri,     X86::MOV16mi,       TB_FOLDED_STORE },
     { X86::MOV16rr,     X86::MOV16mr,       TB_FOLDED_STORE },

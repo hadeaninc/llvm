@@ -504,13 +504,13 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   }
 
   // @HADEAN@
-  // We reserve R11 for the address of indirect jumps
+  // We reserve R15 for use in indirect jumps
   const X86Subtarget &subtarget = MF.getSubtarget<X86Subtarget>();
   if (subtarget.isTargetHadean()) {
-    Reserved.set(X86::R11);
-    Reserved.set(X86::R11D);
-    Reserved.set(X86::R11W);
-    Reserved.set(X86::R11B);
+    Reserved.set(X86::R15);
+    Reserved.set(X86::R15D);
+    Reserved.set(X86::R15W);
+    Reserved.set(X86::R15B);
   }
 
   return Reserved;

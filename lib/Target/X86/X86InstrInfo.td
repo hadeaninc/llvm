@@ -890,7 +890,7 @@ def FavorMemIndirectCall  : Predicate<"!Subtarget->callRegIndirect()">;
 def NotSlowIncDec : Predicate<"!Subtarget->slowIncDec()">;
 def HasFastMem32 : Predicate<"!Subtarget->isUnalignedMem32Slow()">;
 def HasMFence    : Predicate<"Subtarget->hasMFence()">;
-def IsHadean     : Predicate<"Subtarget->isTargetHadean()">; // @HADEAN@
+def NotHadean    : Predicate<"!Subtarget->isTargetHadean()">; // @HADEAN@
 
 //===----------------------------------------------------------------------===//
 // X86 Instruction Format Definitions.
@@ -2421,7 +2421,7 @@ let SchedRW = [ WriteSystem ] in {
   }
 
   let Uses = [ ECX, EAX, EBX ] in {
-    def MWAITXrrr : I<0x01, MRM_FB, (outs), (ins), "mwaitx", 
+    def MWAITXrrr : I<0x01, MRM_FB, (outs), (ins), "mwaitx",
                     [(int_x86_mwaitx ECX, EAX, EBX)], IIC_SSE_MWAITX>,
                     TB, Requires<[ HasMWAITX ]>;
   }
@@ -2529,9 +2529,6 @@ include "X86InstrCMovSetCC.td"
 include "X86InstrExtension.td"
 include "X86InstrControl.td"
 include "X86InstrShiftRotate.td"
-
-// @HADEAN@
-include "X86InstrHadean.td"
 
 // X87 Floating Point Stack.
 include "X86InstrFPStack.td"
