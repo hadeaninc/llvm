@@ -39,7 +39,6 @@ set(sources
   X86VZeroUpper.cpp
   X86WinAllocaExpander.cpp
   X86WinEHState.cpp
-  X86HadeanExpandJumps.cpp # @HADEAN@
   X86HadeanRewriteControl.cpp # @HADEAN@
   )
 
