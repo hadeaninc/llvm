@@ -42,10 +42,12 @@ bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
 }
 
 bool X86HadeanRewriteControl::rewriteMBB(MachineBasicBlock &MBB) {
+  bool modified = false;
+
   // TODO: Do only for taken MBBs.
   MBB.setAlignment(5);
+  modified = true;
 
-  bool modified = false;
   // MBBI may be invalidated by the expansion.
   MachineBasicBlock::iterator MBBIter = MBB.begin(), MBBEnd = MBB.end();
   while (MBBIter != MBBEnd) {
