@@ -34,29 +34,30 @@ const char *X86HadeanRewriteControl::getPassName() const {
 }
 
 bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
-  bool modified = false;
-  for (MachineBasicBlock &MBB : MF)
-    modified |= rewriteMBB(MBB);
+  // TODO: Do only for taken MFs.
+  MF.setAlignment(5);
 
-  return modified;
+  bool modified = false;
+  for (MachineBasicBlock &MBB : MF) {
+    rewriteMBB(MBB);
+  }
+
+  return true;
 }
 
 bool X86HadeanRewriteControl::rewriteMBB(MachineBasicBlock &MBB) {
-  bool modified = false;
-
   // TODO: Do only for taken MBBs.
   MBB.setAlignment(5);
-  modified = true;
 
   // MBBI may be invalidated by the expansion.
   MachineBasicBlock::iterator MBBIter = MBB.begin(), MBBEnd = MBB.end();
   while (MBBIter != MBBEnd) {
     const MachineBasicBlock::iterator MBBIterNext = std::next(MBBIter);
-    modified |= rewriteMI(MBB, *MBBIter);
+    rewriteMI(MBB, *MBBIter);
     MBBIter = MBBIterNext;
   }
 
-  return modified;
+  return true;
 }
 
 bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineInstr &MI) {
