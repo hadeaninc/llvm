@@ -37,7 +37,6 @@ bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
   // TODO: Do only for taken MFs.
   MF.setAlignment(5);
 
-  bool modified = false;
   for (MachineBasicBlock &MBB : MF) {
     rewriteMBB(MBB);
   }
