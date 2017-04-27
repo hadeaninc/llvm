@@ -874,6 +874,8 @@ def IsPS4        : Predicate<"Subtarget->isTargetPS4()">;
 def NotPS4       : Predicate<"!Subtarget->isTargetPS4()">;
 def IsNaCl       : Predicate<"Subtarget->isTargetNaCl()">;
 def NotNaCl      : Predicate<"!Subtarget->isTargetNaCl()">;
+def IsHadean     : Predicate<"Subtarget->getTargetTriple().isVendorHadean()">;
+def NotHadean    : Predicate<"!Subtarget->getTargetTriple().isVendorHadean()">;
 def SmallCode    : Predicate<"TM.getCodeModel() == CodeModel::Small">;
 def KernelCode   : Predicate<"TM.getCodeModel() == CodeModel::Kernel">;
 def FarData      : Predicate<"TM.getCodeModel() != CodeModel::Small &&"
@@ -2561,6 +2563,9 @@ include "X86InstrSystem.td"
 
 // Compiler Pseudo Instructions and Pat Patterns
 include "X86InstrCompiler.td"
+
+// @HADEAN@
+include "X86InstrHadean.td"
 
 //===----------------------------------------------------------------------===//
 // Assembler Mnemonic Aliases
