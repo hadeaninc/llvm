@@ -20,23 +20,33 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
   }
 
   switch (inst.getOpcode()) {
-    default:                 return false;
-
     case X86::CALL64pcrel32: EmitDirectCall(out, inst);   break;
     case X86::CALL64r:       EmitIndirectCall(out, inst); break;
-    case X86::JMP64r:
+    case X86::HAD_JMP64r:
     case X86::TAILJMPr64:    EmitJump(out, inst);         break;
     case X86::RETQ:          EmitReturn(out, inst);       break;
+
+    case X86::JMP64r:
+    case X86::JMP64m:
+      report_fatal_error("Found indirect 'jmp' instrution. Use 'had_jmp' instead");
+
+    case X86::CALL64m:
+    case X86::HAD_JMP64m:
+      report_fatal_error("Instruction should have been expanded");
+
+    default:
+      return false;
   }
 
   return true;
 }
 
 void HadeanExpander::EmitJump(MCStreamer &out, const MCInst& inst) {
-  assert(inst.getOpcode() == X86::JMP64r || inst.getOpcode() == X86::TAILJMPr64);
+  assert(inst.getOpcode() == X86::HAD_JMP64r || inst.getOpcode() == X86::TAILJMPr64);
   assert(inst.getNumOperands() == 1);
   assert(inst.getOperand(0).isReg());
-  EmitSafeBranch(out, inst, inst.getOperand(0).getReg(), /* isCall */ false);
+  EmitSafeBranch(
+      out, inst, /* opcode */ X86::JMP64r, inst.getOperand(0).getReg(), /* alignToEnd */ false);
 }
 
 void HadeanExpander::EmitDirectCall(MCStreamer &out, const MCInst &inst) {
@@ -51,7 +61,8 @@ void HadeanExpander::EmitIndirectCall(MCStreamer &out, const MCInst &inst) {
   assert(inst.getOpcode() == X86::CALL64r);
   assert(inst.getNumOperands() == 1);
   assert(inst.getOperand(0).isReg());
-  EmitSafeBranch(out, inst, inst.getOperand(0).getReg(), /* isCall */ true);
+  EmitSafeBranch(
+      out, inst, /* opcode */ X86::CALL64r, inst.getOperand(0).getReg(), /* alignToEnd */ true);
 }
 
 void HadeanExpander::EmitReturn(MCStreamer &out, const MCInst &inst) {
@@ -64,14 +75,15 @@ void HadeanExpander::EmitReturn(MCStreamer &out, const MCInst &inst) {
 
   MCInstBuilder instJMP(X86::JMP64r);
   instJMP.addReg(kTempReg);
-  EmitSafeBranch(out, instJMP, kTempReg, /* isCall */ false);
+  EmitSafeBranch(out, instJMP, /* opcode */ X86::JMP64r, kTempReg, /* alignToEnd */ false);
 }
 
 void HadeanExpander::EmitSafeBranch(MCStreamer &out,
                                     const MCInst &inst,
+                                    unsigned opcode,
                                     unsigned targetReg,
-                                    bool isCall) {
-  out.EmitBundleLock(/* alignToEnd */ isCall);
+                                    bool alignToEnd) {
+  out.EmitBundleLock(alignToEnd);
 
   // Mask out bottom bits of the pointer. The immediate will be replaced
   // by elf2hoff to mask out the top bits as well.
@@ -91,8 +103,10 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
   instLEA.addReg(0);
   out.EmitInstruction(instLEA, STI_);
 
-  // Emit the original instruction
-  emitRaw_ = true; out.EmitInstruction(inst, STI_); emitRaw_ = false;
+  // Emit the branch instruction
+  MCInstBuilder instBranch(opcode);
+  instBranch.addReg(targetReg);
+  emitRaw_ = true; out.EmitInstruction(instBranch, STI_); emitRaw_ = false;
 
   out.EmitBundleUnlock();
 }
