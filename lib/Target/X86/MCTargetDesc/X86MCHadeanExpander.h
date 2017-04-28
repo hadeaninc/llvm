@@ -30,7 +30,11 @@ private:
   void EmitJump(MCStreamer &out, const MCInst &inst);
   void EmitReturn(MCStreamer &out, const MCInst &inst);
 
-  void EmitSafeBranch(MCStreamer &out, const MCInst &inst, unsigned targetReg, bool isCall);
+  void EmitSafeBranch(MCStreamer &out,
+                      const MCInst &inst,
+                      unsigned opcode,
+                      unsigned targetReg,
+                      bool alignToEnd);
 };
 
 }
