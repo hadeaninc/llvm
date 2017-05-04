@@ -5,6 +5,7 @@
 #include "X86Subtarget.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCContext.h"
@@ -36,6 +37,18 @@ const char *X86HadeanRewriteControl::getPassName() const {
 bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
   // TODO: Do only for taken MFs.
   MF.setAlignment(5);
+
+  // Align jump table targets.
+  MachineJumpTableInfo *JTI = MF.getJumpTableInfo();
+  if (JTI != NULL) {
+    const std::vector<MachineJumpTableEntry> &JT = JTI->getJumpTables();
+    for (unsigned i = 0; i < JT.size(); ++i) {
+      const std::vector<MachineBasicBlock*> &MBBs = JT[i].MBBs;
+      for (unsigned j = 0; j < MBBs.size(); ++j) {
+        MBBs[j]->setAlignment(5);
+      }
+    }
+  }
 
   for (MachineBasicBlock &MBB : MF) {
     rewriteMBB(MBB);
