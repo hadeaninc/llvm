@@ -90,7 +90,7 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
   MCInstBuilder instAND(X86::AND64ri32);
   instAND.addReg(targetReg);
   instAND.addReg(targetReg);
-  instAND.addImm(-1);
+  instAND.addImm(-32);
   out.EmitInstruction(instAND, STI_);
 
   // Add the base from the reserved register.
