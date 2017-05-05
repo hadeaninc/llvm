@@ -337,4 +337,8 @@ void X86PassConfig::addPreEmitPass() {
     addPass(createX86PadShortFunctions());
     addPass(createX86FixupLEAs());
   }
+
+  if (Triple(TM->getTargetTriple()).isVendorHadean()) {
+    addPass(createX86HadeanAlignCode());
+  }
 }

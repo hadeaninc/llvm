@@ -35,41 +35,27 @@ const char *X86HadeanRewriteControl::getPassName() const {
 }
 
 bool X86HadeanRewriteControl::runOnMachineFunction(MachineFunction &MF) {
-  // TODO: Do only for taken MFs.
-  MF.setAlignment(5);
-
-  // Align jump table targets.
-  MachineJumpTableInfo *JTI = MF.getJumpTableInfo();
-  if (JTI != NULL) {
-    const std::vector<MachineJumpTableEntry> &JT = JTI->getJumpTables();
-    for (unsigned i = 0; i < JT.size(); ++i) {
-      const std::vector<MachineBasicBlock*> &MBBs = JT[i].MBBs;
-      for (unsigned j = 0; j < MBBs.size(); ++j) {
-        MBBs[j]->setAlignment(5);
-      }
-    }
-  }
+  bool modified = false;
 
   for (MachineBasicBlock &MBB : MF) {
-    rewriteMBB(MBB);
+    modified |= rewriteMBB(MBB);
   }
 
-  return true;
+  return modified;
 }
 
 bool X86HadeanRewriteControl::rewriteMBB(MachineBasicBlock &MBB) {
-  // TODO: Do only for taken MBBs.
-  MBB.setAlignment(5);
+  bool modified = false;
 
   // MBBI may be invalidated by the expansion.
   MachineBasicBlock::iterator MBBIter = MBB.begin(), MBBEnd = MBB.end();
   while (MBBIter != MBBEnd) {
     const MachineBasicBlock::iterator MBBIterNext = std::next(MBBIter);
-    rewriteMI(MBB, *MBBIter);
+    modified |= rewriteMI(MBB, *MBBIter);
     MBBIter = MBBIterNext;
   }
 
-  return true;
+  return modified;
 }
 
 bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineInstr &MI) {
