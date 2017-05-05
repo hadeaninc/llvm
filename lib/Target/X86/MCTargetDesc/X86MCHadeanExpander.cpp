@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cassert>
 
+#include "llvm/Support/CommandLine.h"
 #include <llvm/MC/MCInst.h>
 #include <llvm/MC/MCExpr.h>
 #include <llvm/MC/MCContext.h>
@@ -12,6 +13,9 @@
 #include "MCTargetDesc/X86MCTargetDesc.h"
 
 namespace llvm {
+
+// To enable, pass '-mllvm --hadean-debug-cfi' to Clang.
+cl::opt<bool> DebugCFI("hadean-debug-cfi", cl::desc("Debug instrumentation for Hadean CFI"), cl::init(false));
 
 bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
   // If this is a recursive expansion of `inst`, return immediately.
@@ -83,6 +87,18 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
                                     unsigned opcode,
                                     unsigned targetReg,
                                     bool alignToEnd) {
+  if (DebugCFI) {
+    // Do an AND $31 on `targetReg`. Trap if the bottom five bits are not zero.
+    MCContext &context = out.getContext();
+    MCSymbol *labelFine = context.createTempSymbol();
+    out.EmitInstruction(MCInstBuilder(X86::PUSH64r).addReg(targetReg), STI_);
+    out.EmitInstruction(MCInstBuilder(X86::AND64ri32).addReg(targetReg).addReg(targetReg).addImm(31), STI_);
+    out.EmitInstruction(MCInstBuilder(X86::JE_4).addExpr(MCSymbolRefExpr::create(labelFine, context)), STI_);
+    out.EmitInstruction(MCInstBuilder(X86::TRAP), STI_);
+    out.EmitLabel(labelFine);
+    out.EmitInstruction(MCInstBuilder(X86::POP64r).addReg(targetReg), STI_);
+  }
+
   out.EmitBundleLock(alignToEnd);
 
   // Mask out bottom bits of the pointer. The immediate will be replaced
