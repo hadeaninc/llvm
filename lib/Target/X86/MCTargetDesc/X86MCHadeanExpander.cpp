@@ -15,7 +15,10 @@
 namespace llvm {
 
 // To enable, pass '-mllvm --hadean-debug-cfi' to Clang.
-cl::opt<bool> DebugCFI("hadean-debug-cfi", cl::desc("Debug instrumentation for Hadean CFI"), cl::init(false));
+// TODO: This is enaled by default for now. Disable before putting into production!.
+cl::opt<bool> DebugCFI("hadean-debug-cfi",
+                       cl::desc("Debug instrumentation for Hadean CFI"),
+                       cl::init(true));
 
 bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
   // If this is a recursive expansion of `inst`, return immediately.
