@@ -191,7 +191,7 @@ void InstrInfoEmitter::EmitOperandInfo(raw_ostream &OS,
 }
 
 /// Initialize data structures for generating operand name mappings.
-/// 
+///
 /// \param Operands [out] A map used to generate the OpName enum with operand
 ///        names as its keys and operand enum values as its values.
 /// \param OperandMap [out] A map for representing the operand name mappings for
@@ -310,7 +310,7 @@ void InstrInfoEmitter::emitOperandTypesEnum(raw_ostream &OS,
                                             const CodeGenTarget &Target) {
 
   const std::string &Namespace = Target.getInstNamespace();
-  std::vector<Record *> Operands = Records.getAllDerivedDefinitions("Operand");
+  std::vector<Record *> Operands = Records.getAllDerivedDefinitions("DAGOperand");
 
   OS << "#ifdef GET_INSTRINFO_OPERAND_TYPES_ENUM\n";
   OS << "#undef GET_INSTRINFO_OPERAND_TYPES_ENUM\n";
@@ -327,6 +327,37 @@ void InstrInfoEmitter::emitOperandTypesEnum(raw_ostream &OS,
   }
 
   OS << "  OPERAND_TYPE_LIST_END" << "\n};\n";
+
+  unsigned MaxNumOperands = 0;
+  for (const CodeGenInstruction *Inst : Target.getInstructionsByEnumValue()) {
+    MaxNumOperands = std::max(MaxNumOperands, Inst->Operands.size());
+  }
+
+  OS << "\nstruct InstOpInfo {\n";
+  OS << "  unsigned Opcode;\n";
+  OS << "  OperandType OperandTypes[" << MaxNumOperands << "];\n";
+  OS << "};\n\n";
+  OS << "static const InstOpInfo InstOpInfoArray[] = {\n";
+
+  for (const CodeGenInstruction *Inst : Target.getInstructionsByEnumValue()) {
+    if (Inst->isCodeGenOnly) {
+      continue;
+    }
+
+    OS << "  { " << Target.getName() << "::" << Inst->TheDef->getName() << ", { ";
+    bool isFirst = true;
+    for (auto &Op : Inst->Operands) {
+      if (isFirst) {
+        isFirst = false;
+      } else {
+        OS << ", ";
+      }
+      OS << Op.Rec->getNameInitAsString();
+    }
+    OS << " } },\n";
+  }
+  OS << "};\n";
+
   OS << "} // end namespace OpTypes\n";
   OS << "} // end namespace " << Namespace << "\n";
   OS << "} // end namespace llvm\n";
