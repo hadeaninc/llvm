@@ -20,4 +20,4 @@ define void @test() {
 ; CHECK-ASM:       nop{{[w]?}}
 ; CHECK-ASM:       callq  {{[-0-9]+}} <foo>
 ; CHECK-ASM-NOT:   nop{{[w]?}}
-; CHECK-ASM:       jmpq
+; CHECK-ASM:       popq

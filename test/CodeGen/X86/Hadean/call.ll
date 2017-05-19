@@ -15,7 +15,6 @@ define i8* @test(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e, i64 %f, void ()* %targe
 ; CHECK-IR:        CALL64m
 
 ; CHECK-ASM:       movq    {{[0-9]+}}(%rsp), %[[REG:r..]]
-; CHECK-ASM-NEXT:  nopw
-; CHECK-ASM-NEXT:  andq    $-32, %[[REG]]
+; CHECK-ASM:       andq    $-32, %[[REG]]
 ; CHECK-ASM-NEXT:  leaq    (%r15,%[[REG]]), %[[REG]]
 ; CHECK-ASM-NEXT:  callq   *%[[REG]]

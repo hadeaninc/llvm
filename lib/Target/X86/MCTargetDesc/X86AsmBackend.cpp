@@ -437,7 +437,7 @@ public:
   HadeanX86_64AsmBackend(const Target &T, uint8_t OSABI, StringRef CPU)
     : ELFX86_64AsmBackend(T, OSABI, CPU),
       STI_(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")),
-      expander_(*STI_) {}
+      expander_(*STI_, std::unique_ptr<MCInstrInfo>(T.createMCInstrInfo())) {}
 
   bool customExpandInst(const MCInst &instr, MCStreamer &out) override {
     out.EmitBundleAlignMode(HadeanExpander::kBundleSizeInBits);  // TODO: move to MCStreamer init
