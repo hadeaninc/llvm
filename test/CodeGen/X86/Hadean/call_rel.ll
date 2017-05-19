@@ -1,7 +1,7 @@
 ; Test that CALL64pcrel32 is aligned to the end of its bundle.
 
-; RUN: llc -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-IR %s
-; RUN: llc -filetype obj -verify-machineinstrs < %s | llvm-objdump -d - | FileCheck -check-prefix=CHECK-ASM %s
+; RUN: llc -hadean-debug-cfi=false -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-IR %s
+; RUN: llc -hadean-debug-cfi=false -filetype obj -verify-machineinstrs < %s | llvm-objdump -d - | FileCheck -check-prefix=CHECK-ASM %s
 
 target triple = "x86_64-hadean-linux"
 
@@ -20,4 +20,4 @@ define void @test() {
 ; CHECK-ASM:       nop{{[w]?}}
 ; CHECK-ASM:       callq  {{[-0-9]+}} <foo>
 ; CHECK-ASM-NOT:   nop{{[w]?}}
-; CHECK-ASM:       jmpq
+; CHECK-ASM:       popq
