@@ -133,6 +133,7 @@ public:
     BGP,
     BGQ,
     Freescale,
+    Hadean,
     IBM,
     ImaginationTechnologies,
     MipsTechnologies,
@@ -627,6 +628,11 @@ public:
     return getEnvironment() == Triple::Musl ||
            getEnvironment() == Triple::MuslEABI ||
            getEnvironment() == Triple::MuslEABIHF;
+  }
+
+  // @HADEAN@
+  bool isVendorHadean() const {
+    return getVendor() == Triple::Hadean;
   }
 
   /// Tests whether the target is NVPTX (32- or 64-bit).

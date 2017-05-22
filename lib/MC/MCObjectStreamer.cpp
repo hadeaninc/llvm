@@ -244,6 +244,13 @@ bool MCObjectStreamer::mayHaveInstructions(MCSection &Sec) const {
 
 void MCObjectStreamer::EmitInstruction(const MCInst &Inst,
                                        const MCSubtargetInfo &STI, bool) {
+  // @HADEAN@
+  // WARNING: Be very careful about control flow here.
+  const bool expanded = getAssembler().getBackend().customExpandInst(Inst, *this);
+  if (expanded) {
+    return;
+  }
+
   MCStreamer::EmitInstruction(Inst, STI);
 
   MCSection *Sec = getCurrentSectionOnly();

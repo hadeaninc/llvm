@@ -163,6 +163,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case CSR: return "csr";
   case Myriad: return "myriad";
   case AMD: return "amd";
+  case Hadean: return "hadean"; // @HADEAN@
   case Mesa: return "mesa";
   case SUSE: return "suse";
   }
@@ -450,6 +451,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("myriad", Triple::Myriad)
     .Case("amd", Triple::AMD)
     .Case("mesa", Triple::Mesa)
+    .Case("hadean", Triple::Hadean) // @HADEAN@
     .Case("suse", Triple::SUSE)
     .Default(Triple::UnknownVendor);
 }

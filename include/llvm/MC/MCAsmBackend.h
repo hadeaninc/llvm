@@ -67,6 +67,11 @@ public:
     return false;
   }
 
+  // @HADEAN@
+  virtual bool customExpandInst(const MCInst &instr, MCStreamer &out) {
+    return false;
+  }
+
   /// Apply the \p Value for given \p Fixup into the provided data fragment, at
   /// the offset specified by the fixup and following the fixup kind as
   /// appropriate. Errors (such as an out of range fixup value) should be
