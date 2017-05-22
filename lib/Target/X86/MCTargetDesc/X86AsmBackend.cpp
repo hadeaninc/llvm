@@ -9,6 +9,7 @@
 
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86FixupKinds.h"
+#include "MCTargetDesc/X86MCHadeanExpander.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCELFObjectWriter.h"
@@ -423,6 +424,24 @@ public:
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override {
     return createX86ELFObjectWriter(OS, /*IsELF64*/ true, OSABI, ELF::EM_X86_64);
+  }
+};
+
+// @HADEAN@
+class HadeanX86_64AsmBackend : public ELFX86_64AsmBackend {
+private:
+  std::unique_ptr<MCSubtargetInfo> STI_;
+  HadeanExpander expander_;
+
+public:
+  HadeanX86_64AsmBackend(const Target &T, uint8_t OSABI, StringRef CPU)
+    : ELFX86_64AsmBackend(T, OSABI, CPU),
+      STI_(X86_MC::createX86MCSubtargetInfo(Triple("x86_64", "unknown", "hadean"), CPU, "")),
+      expander_(*STI_) {}
+
+  bool customExpandInst(const MCInst &instr, MCStreamer &out) override {
+    out.EmitBundleAlignMode(HadeanExpander::kBundleSizeInBits);  // TODO: move to MCStreamer init
+    return expander_.expandInstruction(out, instr);
   }
 };
 
@@ -875,7 +894,24 @@ MCAsmBackend *llvm::createX86_64AsmBackend(const Target &T,
 
   uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TheTriple.getOS());
 
+  // @HADEAN@
+  if (TheTriple.isVendorHadean()) {
+    return new HadeanX86_64AsmBackend(T, OSABI, CPU);
+  }
+
   if (TheTriple.getEnvironment() == Triple::GNUX32)
     return new ELFX86_X32AsmBackend(T, OSABI, CPU);
   return new ELFX86_64AsmBackend(T, OSABI, CPU);
+}
+
+// @HADEAN@
+// This is a hack to get relaxed op-codes until we can figure out how to
+// instantiate the assembler backend.
+
+namespace llvm {
+namespace X86 {
+unsigned getRelaxedOpcode(const MCInst &Inst) {
+  return ::getRelaxedOpcode(Inst, false);
+}
+}
 }

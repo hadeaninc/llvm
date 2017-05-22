@@ -558,6 +558,16 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     }
   }
 
+  // @HADEAN@
+  // We reserve R15 for use in indirect jumps
+  const X86Subtarget &subtarget = MF.getSubtarget<X86Subtarget>();
+  if (subtarget.isTargetHadean()) {
+    Reserved.set(X86::R15);
+    Reserved.set(X86::R15D);
+    Reserved.set(X86::R15W);
+    Reserved.set(X86::R15B);
+  }
+
   assert(checkAllSuperRegsMarked(Reserved,
                                  {X86::SIL, X86::DIL, X86::BPL, X86::SPL}));
   return Reserved;

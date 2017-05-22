@@ -138,6 +138,7 @@ public:
     CSR,
     Myriad,
     AMD,
+    Hadean, // @HADEAN@
     Mesa,
     LastVendorType = Mesa
   };
@@ -587,6 +588,11 @@ public:
   bool isPS4() const {
     return getVendor() == Triple::SCEI &&
            getOS() == Triple::PS4;
+  }
+
+  // @HADEAN@
+  bool isVendorHadean() const {
+    return getVendor() == Triple::Hadean;
   }
 
   /// Tests whether the target is Android

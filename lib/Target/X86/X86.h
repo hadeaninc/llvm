@@ -86,6 +86,10 @@ FunctionPass *createX86ExpandPseudoPass();
 /// the upper portions of registers, and to save code size.
 FunctionPass *createX86FixupBWInsts();
 
+// @HADEAN@
+FunctionPass *createX86HadeanAlignCode();
+FunctionPass *createX86HadeanRewriteControl();
+
 void initializeFixupBWInstPassPass(PassRegistry &);
 
 /// This pass replaces EVEX ecnoded of AVX-512 instructiosn by VEX 
