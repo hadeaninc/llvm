@@ -35,6 +35,8 @@ set(sources
   X86FixupSetCC.cpp
   X86FloatingPoint.cpp
   X86FrameLowering.cpp
+  X86HadeanAlignCode.cpp # @HADEAN@
+  X86HadeanRewriteControl.cpp # @HADEAN@
   X86ISelDAGToDAG.cpp
   X86ISelLowering.cpp
   X86InterleavedAccess.cpp

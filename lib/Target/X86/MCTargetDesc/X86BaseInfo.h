@@ -51,7 +51,12 @@ namespace X86 {
     TO_ZERO = 3,
     CUR_DIRECTION = 4
   };
+
+  // @HADEAN@
+  unsigned getRelaxedOpcode(const MCInst &inst);
+
 } // end namespace X86;
+
 
 /// X86II - This namespace holds all of the target specific flags that
 /// instruction info tracks.
