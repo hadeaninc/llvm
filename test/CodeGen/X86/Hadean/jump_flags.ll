@@ -1,7 +1,7 @@
 ; Test that JMP semantics include clobbering EFLAGS.
 
-; RUN: llc -O2 -mtriple="x86_64-hadean-linux" -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-HADEAN %s
-; RUN: llc -O2 -mtriple="x86_64-unknown-linux" -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-LINUX %s
+; RUN: llc -hadean-debug-cfi=false -O2 -mtriple="x86_64-hadean-linux" -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-HADEAN %s
+; RUN: llc -hadean-debug-cfi=false -O2 -mtriple="x86_64-unknown-linux" -print-after-all < %s 2>&1 | FileCheck -check-prefix=CHECK-LINUX %s
 
 declare i32 @bar(i32)
 
