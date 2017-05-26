@@ -150,6 +150,9 @@ static inline bool IsPush(const MCInst &inst, /* out */ int64_t *outSize = nullp
     case X86::PUSH64r:
     case X86::PUSH64rmr: size = 8; break;
 
+    case X86::PUSH64i8:  size = 1; break;
+    case X86::PUSH64i32: size = 4; break;
+
     case X86::PUSH16rmm:
     case X86::PUSH64rmm: report_fatal_error("PUSH from memory not valid on Hadean");
 
