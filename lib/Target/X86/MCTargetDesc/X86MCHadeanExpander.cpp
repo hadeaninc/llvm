@@ -352,8 +352,14 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst)
   }
 
   if (!memAddrLower.IsValid() && !memAddrUpper.IsValid()) {
-    llvm::errs() << "WARNING: Instruction " << GetName(inst)
-                 << " with load/store semantics without a memory operand\n";
+    switch (inst.getOpcode()) {
+    case X86::TRAP:
+      break;  // Do nothing
+    default:
+      llvm::errs() << "WARNING: Instruction " << GetName(inst)
+                   << " with load/store semantics without a memory operand\n";
+      break;
+    }
     return false;
   }
 
