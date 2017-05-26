@@ -81,8 +81,13 @@ static inline bool IsPrefixInstruction(const MCInst &inst) {
 
 class RawEmitLock {
 public:
-  RawEmitLock(bool *value) : value_(value) { *value_ = true; }
+  RawEmitLock(bool *value) : value_(value) {
+    assert(*value_ == false);
+    *value_ = true;
+  }
+
   ~RawEmitLock() { *value_ = false; }
+
 private:
   bool *value_;
 };
