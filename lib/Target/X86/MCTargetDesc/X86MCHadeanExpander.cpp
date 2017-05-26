@@ -222,6 +222,13 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
     return false;
   }
 
+  if (!emitHadeanJump_) {
+    RawEmitLock l(&emitHadeanJump_);
+    if (HandleHadeanJump(out, inst)) {
+      return true;
+    }
+  }
+
   if (prefixedInstruction_ == nullptr) {
     if (IsPrefixInstruction(inst)) {
       // Collect all prefix instructions so that we do not split them
@@ -280,6 +287,34 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
   }
 
   return false;
+}
+
+bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const MCInst &inst) {
+  switch (inst.getOpcode()) {
+    case X86::HAD_JMP64r: {
+      MCInstBuilder instJMP(X86::JMP64r);
+      instJMP.addReg(inst.getOperand(0).getReg());
+      out.EmitInstruction(instJMP, STI_);
+      return true;
+    }
+
+    case X86::JMP64r:
+    case X86::JMP64m:
+      // This method is not invoked recursively on the lowered JMP instruction.
+      // If we're seeing a JMP, it is coming from user's code.
+      report_fatal_error("Found indirect 'jmp' instrution. Use 'hadjmp' instead");
+
+    case X86::CALL64m:
+      report_fatal_error("Found indirect 'call' with a memory operand. "
+                         "Use the variant with a register operand instead");
+
+    case X86::HAD_JMP64m:
+      report_fatal_error("Found indirect 'hadjmp' with a memory operand. "
+                         "Use the variant with a register operand instead");
+
+    default:
+      return false;
+  }
 }
 
 bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &inst) {
@@ -388,17 +423,9 @@ bool HadeanExpander::HandleCFI(MCStreamer &out, const MCInst &inst) {
   switch (inst.getOpcode()) {
     case X86::CALL64pcrel32: EmitDirectCall(out, inst);   break;
     case X86::CALL64r:       EmitIndirectCall(out, inst); break;
-    case X86::HAD_JMP64r:
+    case X86::JMP64r:
     case X86::TAILJMPr64:    EmitJump(out, inst);         break;
     case X86::RETQ:          EmitReturn(out, inst);       break;
-
-    case X86::JMP64r:
-    case X86::JMP64m:
-      report_fatal_error("Found indirect 'jmp' instrution. Use 'hadjmp' instead");
-
-    case X86::CALL64m:
-    case X86::HAD_JMP64m:
-      report_fatal_error("Instruction should have been expanded");
 
     default:
       return false;

@@ -15,6 +15,7 @@ public:
       II_(std::move(II)),
       prefixedInstruction_(nullptr),
       emitCompletelyRaw_(false),
+      emitHadeanJump_(false),
       emitWithoutMPX_MemoryAccess_(false),
       emitWithoutMPX_StackPtrUpdate_(false),
       emitWithoutCFI_(false) {}
@@ -43,6 +44,7 @@ private:
   // Emitting instruction recursively attempts to expand it.
   // When these values are set to true, skip re-expansion.
   bool emitCompletelyRaw_;
+  bool emitHadeanJump_;
   bool emitWithoutMPX_MemoryAccess_;
   bool emitWithoutMPX_StackPtrUpdate_;
   bool emitWithoutCFI_;
@@ -50,6 +52,7 @@ private:
   bool HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst);
   bool HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &inst);
   bool HandleCFI(MCStreamer &out, const MCInst &inst);
+  bool HandleHadeanJump(MCStreamer &out, const MCInst &inst);
 
   void EmitDirectCall(MCStreamer &out, const MCInst &inst);
   void EmitIndirectCall(MCStreamer &out, const MCInst &inst);
