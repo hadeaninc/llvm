@@ -392,6 +392,7 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst)
   if (!memAddrLower.IsValid() && !memAddrUpper.IsValid()) {
     switch (inst.getOpcode()) {
     case X86::INT3:
+    case X86::PAUSE:
     case X86::TRAP:
       return false;
     default:
