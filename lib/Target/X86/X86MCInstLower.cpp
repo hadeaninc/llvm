@@ -591,6 +591,9 @@ ReSimplify:
   case X86::RELEASE_DEC32m:    OutMI.setOpcode(X86::DEC32m); goto ReSimplify;
   case X86::RELEASE_DEC64m:    OutMI.setOpcode(X86::DEC64m); goto ReSimplify;
 
+  case X86::MOV8mr_NOREX: OutMI.setOpcode(X86::MOV8mr); goto ReSimplify;
+  case X86::MOV8rm_NOREX: OutMI.setOpcode(X86::MOV8rm); goto ReSimplify;
+
   // We don't currently select the correct instruction form for instructions
   // which have a short %eax, etc. form. Handle this by custom lowering, for
   // now.
@@ -598,9 +601,7 @@ ReSimplify:
   // Note, we are currently not handling the following instructions:
   // MOV64ao8, MOV64o8a
   // XCHG16ar, XCHG32ar, XCHG64ar
-  case X86::MOV8mr_NOREX:
   case X86::MOV8mr:
-  case X86::MOV8rm_NOREX:
   case X86::MOV8rm:
   case X86::MOV16mr:
   case X86::MOV16rm:
@@ -1308,7 +1309,7 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
     const X86FrameLowering* FrameLowering =
         MF->getSubtarget<X86Subtarget>().getFrameLowering();
     bool hasFP = FrameLowering->hasFP(*MF);
-    
+
     // TODO: This is needed only if we require precise CFA.
     bool HasActiveDwarfFrame = OutStreamer->getNumFrameInfos() &&
                                !OutStreamer->getDwarfFrameInfos().back().End;

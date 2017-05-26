@@ -357,9 +357,9 @@ X86InstrInfo::X86InstrInfo(X86Subtarget &STI)
     { X86::MUL8r,       X86::MUL8m,         TB_FOLDED_LOAD },
     { X86::PEXTRDrr,    X86::PEXTRDmr,      TB_FOLDED_STORE },
     { X86::PEXTRQrr,    X86::PEXTRQmr,      TB_FOLDED_STORE },
-    { X86::PUSH16r,     X86::PUSH16rmm,     TB_FOLDED_LOAD },
-    { X86::PUSH32r,     X86::PUSH32rmm,     TB_FOLDED_LOAD },
-    { X86::PUSH64r,     X86::PUSH64rmm,     TB_FOLDED_LOAD },
+    { X86::PUSH16r,     X86::PUSH16rmm,     static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
+    { X86::PUSH32r,     X86::PUSH32rmm,     static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
+    { X86::PUSH64r,     X86::PUSH64rmm,     static_cast<uint16_t>(TB_FOLDED_LOAD | NoForwardForHadean) }, // @HADEAN@
     { X86::SETAEr,      X86::SETAEm,        TB_FOLDED_STORE },
     { X86::SETAr,       X86::SETAm,         TB_FOLDED_STORE },
     { X86::SETBEr,      X86::SETBEm,        TB_FOLDED_STORE },
