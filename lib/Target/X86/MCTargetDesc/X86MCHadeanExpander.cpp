@@ -19,7 +19,7 @@ namespace llvm {
 
 cl::opt<bool> EnableCFI("hadean-cfi",
                         cl::desc("Hadean CFI assembly instrumentation"),
-                        cl::init(true));
+                        cl::init(false));
 
 cl::opt<bool> EnableMPX("hadean-mpx",
                         cl::desc("Hadean MPX assembly instrumentation"),
