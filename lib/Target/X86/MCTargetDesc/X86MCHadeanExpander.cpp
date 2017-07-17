@@ -32,6 +32,7 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
     case X86::HAD_JMP64r:
     case X86::TAILJMPr64:    EmitJump(out, inst);         break;
     case X86::RETQ:          EmitReturn(out, inst);       break;
+    case X86::SYSCALL:       EmitSyscall(out, inst);      break;
 
     case X86::JMP64r:
     case X86::JMP64m:
@@ -128,6 +129,62 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
   emitRaw_ = true; out.EmitInstruction(instBranch, STI_); emitRaw_ = false;
 
   out.EmitBundleUnlock();
+}
+
+void HadeanExpander::EmitSyscall(MCStreamer &out, const MCInst &instSYSCALL) {
+  assert(instSYSCALL.getOpcode() == X86::SYSCALL);
+  static constexpr char kHadeanHostSymbol[] = "__hadean_host";
+  static constexpr char kHadeanSyscall[] = "__hadean_syscall";
+  static constexpr unsigned kTempReg = X86::R11;  // clobbered by syscall anyway
+  static constexpr unsigned kReturnAddressReg = X86::RCX;
+
+  MCContext &context = out.getContext();
+  MCSymbol *labelHadeanBranch = context.createTempSymbol();
+  MCSymbol *labelBranchMerge = context.createTempSymbol();
+
+  // Load the address of "__hadean_host" symbol.
+  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
+      .addReg(kTempReg)
+      .addExpr(MCSymbolRefExpr::create(
+          context.getOrCreateSymbol(kHadeanHostSymbol), context)), STI_);
+
+  out.EmitInstruction(MCInstBuilder(X86::CMP64mi8)
+      .addReg(kTempReg)  // base
+      .addImm(1)         // scale
+      .addReg(0)         // index
+      .addImm(0)         // displacement
+      .addReg(0)         // segment
+      .addImm(1), STI_); // RHS compare value
+
+  out.EmitInstruction(MCInstBuilder(X86::JE_1)
+      .addExpr(MCSymbolRefExpr::create(labelHadeanBranch, context)), STI_);
+
+  out.EmitBundleLock(/* alignToEnd */ false);
+  out.EmitBytes(StringRef("\x0F\x1F\x84\x00\xDE\xAD\xC0\xDE", 8));
+  emitRaw_ = true; out.EmitInstruction(instSYSCALL, STI_); emitRaw_ = false;
+  out.EmitBundleUnlock();
+
+  out.EmitInstruction(MCInstBuilder(X86::JE_1)
+      .addExpr(MCSymbolRefExpr::create(labelBranchMerge, context)), STI_);
+
+  out.EmitLabel(labelHadeanBranch);
+
+  // SYSCALL arguments:
+  // n = %rax, a1 = %rdi, a2 = %rsi, a3 = %rdx, a4 =  %r10, a5 = %r8, a6 = %r9
+
+  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
+      .addReg(kReturnAddressReg)
+      .addExpr(MCSymbolRefExpr::create(labelBranchMerge, context)), STI_);
+
+  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
+      .addReg(kTempReg)
+      .addExpr(MCSymbolRefExpr::create(context.getOrCreateSymbol(kHadeanSyscall), context)), STI_);
+
+  out.EmitInstruction(MCInstBuilder(X86::HAD_JMP64r)
+      .addReg(kTempReg), STI_);
+
+  out.EmitCodeAlignment(kBundleSizeInBytes);
+  out.EmitLabel(labelBranchMerge);
 }
 
 }  // namespace llvm
