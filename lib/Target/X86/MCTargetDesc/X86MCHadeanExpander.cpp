@@ -133,58 +133,43 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
 
 void HadeanExpander::EmitSyscall(MCStreamer &out, const MCInst &instSYSCALL) {
   assert(instSYSCALL.getOpcode() == X86::SYSCALL);
-  static constexpr char kHadeanHostSymbol[] = "__hadean_host";
-  static constexpr char kHadeanSyscall[] = "__hadean_syscall";
-  static constexpr unsigned kTempReg = X86::R11;  // clobbered by syscall anyway
-  static constexpr unsigned kReturnAddressReg = X86::RCX;
+  // TODO: FIX LOCK PREFIX ON THE SYSCALL
 
+  // We instrument the SYSCALL instruction with a 6-byte NOP. This way, elf2hoff
+  // has enough space to replace the 2-byte SYSCALL with a 5-byte direct JMP with
+  // a 32-bit offset. The NOP itself uses the R/M byte and displacement to store
+  // a magic number recognized by elf2hoff as a marker that this particular SYSCALL
+  // was instrumented by Hadean LLVM.
+
+  // LLVM instrumentation:
+  //   66 0f 1f 44 de ad   nopw   -0x53(%rsi,%rbx,8)
+  //   0f 05               syscall
+
+  static constexpr unsigned char kSyscallWithMarker[] =
+      { 0x66, 0x0f, 0x1f, 0x44, 0xde, 0xad, 0x0f, 0x05 };
+  static constexpr size_t kSyscallAlignmentInBytes = 8;
+  assert(sizeof(kSyscallWithMarker) <= kSyscallAlignmentInBytes);
+  assert(kSyscallAlignmentInBytes <= kBundleSizeInBytes);
+
+  // Create return label.
   MCContext &context = out.getContext();
-  MCSymbol *labelHadeanBranch = context.createTempSymbol();
-  MCSymbol *labelBranchMerge = context.createTempSymbol();
+  MCSymbol *labelReturn = context.createTempSymbol();
 
-  // Load the address of "__hadean_host" symbol.
-  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
-      .addReg(kTempReg)
-      .addExpr(MCSymbolRefExpr::create(
-          context.getOrCreateSymbol(kHadeanHostSymbol), context)), STI_);
-
-  out.EmitInstruction(MCInstBuilder(X86::CMP64mi8)
-      .addReg(kTempReg)  // base
-      .addImm(1)         // scale
-      .addReg(0)         // index
-      .addImm(0)         // displacement
-      .addReg(0)         // segment
-      .addImm(1), STI_); // RHS compare value
-
-  out.EmitInstruction(MCInstBuilder(X86::JE_1)
-      .addExpr(MCSymbolRefExpr::create(labelHadeanBranch, context)), STI_);
-
-  out.EmitBundleLock(/* alignToEnd */ false);
-  out.EmitBytes(StringRef("\x0F\x1F\x84\x00\xDE\xAD\xC0\xDE", 8));
-  emitRaw_ = true; out.EmitInstruction(instSYSCALL, STI_); emitRaw_ = false;
-  out.EmitBundleUnlock();
-
-  out.EmitInstruction(MCInstBuilder(X86::JE_1)
-      .addExpr(MCSymbolRefExpr::create(labelBranchMerge, context)), STI_);
-
-  out.EmitLabel(labelHadeanBranch);
-
-  // SYSCALL arguments:
-  // n = %rax, a1 = %rdi, a2 = %rsi, a3 = %rdx, a4 =  %r10, a5 = %r8, a6 = %r9
-
+  // Store return address in RCX.
+  static constexpr unsigned kReturnAddressReg = X86::RCX;  // clobbered by SYSCALL
   out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
       .addReg(kReturnAddressReg)
-      .addExpr(MCSymbolRefExpr::create(labelBranchMerge, context)), STI_);
+      .addExpr(MCSymbolRefExpr::create(labelReturn, context)), STI_);
 
-  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
-      .addReg(kTempReg)
-      .addExpr(MCSymbolRefExpr::create(context.getOrCreateSymbol(kHadeanSyscall), context)), STI_);
+  // Emit marker and syscall. We need to emit the exact sequence of bytes
+  // so that the LLVM assembler does not optimize it.
+  out.EmitCodeAlignment(kSyscallAlignmentInBytes);
+  out.EmitBytes(StringRef(reinterpret_cast<const char*>(kSyscallWithMarker),
+                          sizeof(kSyscallWithMarker)));
 
-  out.EmitInstruction(MCInstBuilder(X86::HAD_JMP64r)
-      .addReg(kTempReg), STI_);
-
+  // Return label
   out.EmitCodeAlignment(kBundleSizeInBytes);
-  out.EmitLabel(labelBranchMerge);
+  out.EmitLabel(labelReturn);
 }
 
 }  // namespace llvm
