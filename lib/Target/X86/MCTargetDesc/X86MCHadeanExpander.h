@@ -29,6 +29,7 @@ private:
   void EmitIndirectCall(MCStreamer &out, const MCInst &inst);
   void EmitJump(MCStreamer &out, const MCInst &inst);
   void EmitReturn(MCStreamer &out, const MCInst &inst);
+  void EmitSyscall(MCStreamer &out, const MCInst &inst);
 
   void EmitSafeBranch(MCStreamer &out,
                       const MCInst &inst,
