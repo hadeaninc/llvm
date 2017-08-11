@@ -32,6 +32,7 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
     case X86::HAD_JMP64r:
     case X86::TAILJMPr64:    EmitJump(out, inst);         break;
     case X86::RETQ:          EmitReturn(out, inst);       break;
+    case X86::SYSCALL:       EmitSyscall(out, inst);      break;
 
     case X86::JMP64r:
     case X86::JMP64m:
@@ -128,6 +129,47 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
   emitRaw_ = true; out.EmitInstruction(instBranch, STI_); emitRaw_ = false;
 
   out.EmitBundleUnlock();
+}
+
+void HadeanExpander::EmitSyscall(MCStreamer &out, const MCInst &instSYSCALL) {
+  assert(instSYSCALL.getOpcode() == X86::SYSCALL);
+  // TODO: FIX LOCK PREFIX ON THE SYSCALL
+
+  // We instrument the SYSCALL instruction with a 6-byte NOP. This way, elf2hoff
+  // has enough space to replace the 2-byte SYSCALL with a 5-byte direct JMP with
+  // a 32-bit offset. The NOP itself uses the R/M byte and displacement to store
+  // a magic number recognized by elf2hoff as a marker that this particular SYSCALL
+  // was instrumented by Hadean LLVM.
+
+  // LLVM instrumentation:
+  //   66 0f 1f 44 de ad   nopw   -0x53(%rsi,%rbx,8)
+  //   0f 05               syscall
+
+  static constexpr unsigned char kSyscallWithMarker[] =
+      { 0x66, 0x0f, 0x1f, 0x44, 0xde, 0xad, 0x0f, 0x05 };
+  static constexpr size_t kSyscallAlignmentInBytes = 8;
+  assert(sizeof(kSyscallWithMarker) <= kSyscallAlignmentInBytes);
+  assert(kSyscallAlignmentInBytes <= kBundleSizeInBytes);
+
+  // Create return label.
+  MCContext &context = out.getContext();
+  MCSymbol *labelReturn = context.createTempSymbol();
+
+  // Store return address in RCX.
+  static constexpr unsigned kReturnAddressReg = X86::RCX;  // clobbered by SYSCALL
+  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
+      .addReg(kReturnAddressReg)
+      .addExpr(MCSymbolRefExpr::create(labelReturn, context)), STI_);
+
+  // Emit marker and syscall. We need to emit the exact sequence of bytes
+  // so that the LLVM assembler does not optimize it.
+  out.EmitCodeAlignment(kSyscallAlignmentInBytes);
+  out.EmitBytes(StringRef(reinterpret_cast<const char*>(kSyscallWithMarker),
+                          sizeof(kSyscallWithMarker)));
+
+  // Return label
+  out.EmitCodeAlignment(kBundleSizeInBytes);
+  out.EmitLabel(labelReturn);
 }
 
 }  // namespace llvm
