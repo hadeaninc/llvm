@@ -422,7 +422,7 @@ void X86PassConfig::addPreEmitPass() {
     addPass(createX86EvexToVexInsts());
   }
 
-  if (Triple(TM->getTargetTriple()).isVendorHadean()) {
+/*  if (Triple(TM->getTargetTriple()).isVendorHadean()) {
     addPass(createX86HadeanAlignCode());
-  }
+  } */
 }
