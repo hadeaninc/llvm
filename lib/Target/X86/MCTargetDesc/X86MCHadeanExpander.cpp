@@ -268,6 +268,13 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
     }
   }
 
+  if (!emitWithoutSyscall_) {
+    RawEmitLock l(&emitWithoutSyscall_);
+    if (HandleSyscall(out, inst)) {
+      return true;
+    }
+  }
+
   // If we are here, we are about to emit `inst` raw.
 
   if (prefixedInstruction_ == &inst) {
@@ -436,6 +443,14 @@ bool HadeanExpander::HandleCFI(MCStreamer &out, const MCInst &inst) {
   return true;
 }
 
+bool HadeanExpander::HandleSyscall(MCStreamer &out, const MCInst &inst) {
+  if (inst.getOpcode() == X86::SYSCALL) {
+    EmitSyscall(out, inst);
+    return true;
+  }
+  return false;
+}
+
 void HadeanExpander::EmitJump(MCStreamer &out, const MCInst& inst) {
   assert(inst.getOpcode() == X86::HAD_JMP64r || inst.getOpcode() == X86::TAILJMPr64);
   assert(inst.getNumOperands() == 1);
@@ -544,7 +559,6 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
 
 void HadeanExpander::EmitSyscall(MCStreamer &out, const MCInst &instSYSCALL) {
   assert(instSYSCALL.getOpcode() == X86::SYSCALL);
-  // TODO: FIX LOCK PREFIX ON THE SYSCALL
 
   // We instrument the SYSCALL instruction with a 6-byte NOP. This way, elf2hoff
   // has enough space to replace the 2-byte SYSCALL with a 5-byte direct JMP with

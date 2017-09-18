@@ -18,7 +18,8 @@ public:
       emitHadeanJump_(false),
       emitWithoutMPX_MemoryAccess_(false),
       emitWithoutMPX_StackPtrUpdate_(false),
-      emitWithoutCFI_(false) {}
+      emitWithoutCFI_(false),
+      emitWithoutSyscall_(false) {}
 
   bool expandInstruction(MCStreamer& out, const MCInst &instr);
 
@@ -48,11 +49,13 @@ private:
   bool emitWithoutMPX_MemoryAccess_;
   bool emitWithoutMPX_StackPtrUpdate_;
   bool emitWithoutCFI_;
+  bool emitWithoutSyscall_;
 
   bool HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst);
   bool HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &inst);
   bool HandleCFI(MCStreamer &out, const MCInst &inst);
   bool HandleHadeanJump(MCStreamer &out, const MCInst &inst);
+  bool HandleSyscall(MCStreamer &out, const MCInst &inst);
 
   void EmitDirectCall(MCStreamer &out, const MCInst &inst);
   void EmitIndirectCall(MCStreamer &out, const MCInst &inst);
