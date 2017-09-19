@@ -484,7 +484,7 @@ bool HadeanExpander::HandleSyscall(MCStreamer &out, const PrefixInst &p_inst) {
 }
 
 void HadeanExpander::EmitJump(MCStreamer &out, const PrefixInst &p_inst) {
-  assert(p_inst.inst_.getOpcode() == X86::HAD_JMP64r || p_inst.inst_.getOpcode() == X86::TAILJMPr64);
+  assert(p_inst.inst_.getOpcode() == X86::JMP64r || p_inst.inst_.getOpcode() == X86::TAILJMPr64);
   assert(p_inst.inst_.getNumOperands() == 1);
   assert(p_inst.inst_.getOperand(0).isReg());
   EmitSafeBranch(
