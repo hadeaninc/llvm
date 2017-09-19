@@ -29,7 +29,7 @@ cl::opt<bool> EnableMPX("hadean-mpx",
 // TODO: This is enaled by default for now. Disable before putting into production!.
 cl::opt<bool> DebugCFI("hadean-debug-cfi",
                        cl::desc("Debug instrumentation for Hadean CFI"),
-                       cl::init(false));
+                       cl::init(true));
 
 extern const char X86InstrNameData[];
 extern const unsigned X86InstrNameIndices[];
