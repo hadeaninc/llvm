@@ -79,19 +79,6 @@ static inline bool IsPrefixInstruction(const MCInst &inst) {
   }
 }
 
-class RawEmitLock {
-public:
-  RawEmitLock(bool *value) : value_(value) {
-    assert(*value_ == false);
-    *value_ = true;
-  }
-
-  ~RawEmitLock() { *value_ = false; }
-
-private:
-  bool *value_;
-};
-
 struct MemoryOperand {
   MemoryOperand() : valid(false) {}
 
@@ -221,91 +208,88 @@ static inline unsigned GetMemoryOperandSize(const MCInst &inst, unsigned opIdxGe
 }
 
 bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
-  // If this is a recursive expansion of `inst`, return immediately.
-  if (emitCompletelyRaw_) {
+  assert(!frames_.empty());
+
+  // for (size_t i = 0; i < frames_.size(); ++i) llvm::errs() << " ";
+  // llvm::errs() << "instr = ";
+  // inst.print(llvm::errs());
+  // llvm::errs() << "\n";
+
+  WorkFrame &current = frames_.back();
+  if (current.stage_ == kEmitStage) {
     return false;
   }
 
-  if (!emitHadeanJump_) {
-    RawEmitLock l(&emitHadeanJump_);
-    if (HandleHadeanJump(out, inst)) {
-      return true;
-    }
-  }
-
-  if (prefixedInstruction_ == nullptr) {
-    if (IsPrefixInstruction(inst)) {
-      // Collect all prefix instructions so that we do not split them
-      // from the main instruction.
-      instructionPrefixes_.push_back(inst.getOpcode());
-      // Return without emitting the prefix.
-      return true;
-    } else if (!instructionPrefixes_.empty()) {
-      // This is the instruction that we have collected prefixes for.
-      // Store a pointer to it so we can recognize it once it is being emitted.
-      prefixedInstruction_ = &inst;
-    }
-  }
-
-  if (EnableMPX && !emitWithoutMPX_MemoryAccess_) {
-    RawEmitLock l(&emitWithoutMPX_MemoryAccess_);
-    if (HandleMPX_MemoryAccess(out, inst)) {
-      return true;
-    }
-  }
-
-  if (EnableMPX && !emitWithoutMPX_StackPtrUpdate_) {
-    RawEmitLock l(&emitWithoutMPX_StackPtrUpdate_);
-    if (HandleMPX_StackPtrUpdate(out, inst)) {
-      return true;
-    }
-  }
-
-  if (EnableCFI && !emitWithoutCFI_) {
-    RawEmitLock l(&emitWithoutCFI_);
-    if (HandleCFI(out, inst)) {
-      return true;
-    }
-  }
-
-  if (!emitWithoutSyscall_) {
-    RawEmitLock l(&emitWithoutSyscall_);
-    if (HandleSyscall(out, inst)) {
-      return true;
-    }
-  }
-
-  // If we are here, we are about to emit `inst` raw.
-
-  if (prefixedInstruction_ == &inst) {
-    assert(!instructionPrefixes_.empty());
-
-    // This instruction has prefixes which we have collected and
-    // now need to emit them together with the instruction.
-
-    RawEmitLock l(&emitCompletelyRaw_);
-
-    out.EmitBundleLock(/* alignToEnd */ false);
-    for (unsigned prefixOpcode : instructionPrefixes_) {
-      out.EmitInstruction(MCInstBuilder(prefixOpcode), STI_);
-    }
-    out.EmitInstruction(inst, STI_);
-    out.EmitBundleUnlock();
-
-    instructionPrefixes_.clear();
-    prefixedInstruction_ = nullptr;
+  if (IsPrefixInstruction(inst)) {
+    current.prefixes_.append({ inst });
     return true;
   }
 
-  return false;
+  Stage stage = current.stage_;
+  PrefixInst p_inst(inst, current.prefixes_);
+  current.prefixes_.clear();
+
+  while (true) {
+    bool handled = false;
+
+    frames_.push_back(WorkFrame(static_cast<Stage>(stage + 1)));
+    switch (stage) {
+    case kHadeanJumpStage:
+      handled = HandleHadeanJump(out, p_inst);
+      break;
+    case kMpxMemAccessStage:
+      handled = HandleMPX_MemoryAccess(out, p_inst);
+      break;
+    case kMpxStackPtrStage:
+      handled = HandleMPX_StackPtrUpdate(out, p_inst);
+      break;
+    case kCfiStage:
+      handled = HandleCFI(out, p_inst);
+      break;
+    case kSyscallStage:
+      handled = HandleSyscall(out, p_inst);
+      break;
+    default:
+      report_fatal_error("Unexpected");
+    }
+    frames_.pop_back();
+
+    if (handled) {
+      return true;
+    }
+
+    stage = static_cast<Stage>(stage + 1);
+
+    if (stage == kEmitStage) {
+      if (p_inst.prefixes_.empty()) {
+        return false;
+      } else {
+        EmitWithPrefixes(out, p_inst);
+        return true;
+      }
+    }
+  }
 }
 
-bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const MCInst &inst) {
-  switch (inst.getOpcode()) {
+void HadeanExpander::EmitWithPrefixes(MCStreamer &out, const PrefixInst &p_inst) {
+  if (p_inst.prefixes_.empty()) {
+    out.EmitInstruction(p_inst.inst_, STI_);
+  } else {
+    out.EmitBundleLock(/* alignToEnd */ false);
+    for (auto &prefix : p_inst.prefixes_) {
+      out.EmitInstruction(prefix, STI_);
+    }
+    out.EmitInstruction(p_inst.inst_, STI_);
+    out.EmitBundleUnlock();
+  }
+}
+
+bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const PrefixInst &p_inst) {
+  switch (p_inst.inst_.getOpcode()) {
     case X86::HAD_JMP64r: {
       MCInstBuilder instJMP(X86::JMP64r);
-      instJMP.addReg(inst.getOperand(0).getReg());
-      out.EmitInstruction(instJMP, STI_);
+      instJMP.addReg(p_inst.inst_.getOperand(0).getReg());
+      EmitWithPrefixes(out, PrefixInst(instJMP, p_inst));
       return true;
     }
 
@@ -323,17 +307,18 @@ bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const MCInst &inst) {
       report_fatal_error("Found indirect 'hadjmp' with a memory operand. "
                          "Use the variant with a register operand instead");
 
-    default:
+    default: {
       return false;
+    }
   }
 }
 
-bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &inst) {
-  const MCInstrDesc &desc = GetDesc(inst);
+bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst &p_inst) {
+  const MCInstrDesc &desc = GetDesc(p_inst.inst_);
 
   bool foundStackPtrDef = false;
   for (unsigned i = 0; i < desc.getNumDefs(); ++i) {
-    if (IsStackRegisterOperand(inst, i)) {
+    if (IsStackRegisterOperand(p_inst.inst_, i)) {
       assert(!foundStackPtrDef);
       foundStackPtrDef = true;
     }
@@ -345,7 +330,7 @@ bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &ins
 
     out.EmitBundleLock(/* alignToEnd */ false);
 
-    out.EmitInstruction(inst, STI_);
+    EmitWithPrefixes(out, p_inst);
 
     MCInstBuilder instLower(X86::BNDCL64rr);
     instLower.addReg(kStackOpBoundsReg);
@@ -358,15 +343,14 @@ bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &ins
     out.EmitInstruction(instUpper, STI_);
 
     out.EmitBundleUnlock();
-
     return true;
   } else {
     return false;
   }
 }
 
-bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst) {
-  const MCInstrDesc &desc = GetDesc(inst);
+bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p_inst) {
+  const MCInstrDesc &desc = GetDesc(p_inst.inst_);
   if (!desc.mayLoad() && !desc.mayStore()) {
     return false;
   }
@@ -375,10 +359,10 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst)
   unsigned boundsReg;
   MemoryOperand memAddrLower, memAddrUpper;
 
-  if (IsPush(inst, &size)) {
+  if (IsPush(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
     memAddrLower.FromStackPtr(-size);
-  } else if (IsPop(inst, &size)) {
+  } else if (IsPop(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
     memAddrUpper.FromStackPtr(size);
   } else {
@@ -389,22 +373,22 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst)
     for (unsigned idxMC = 0, idxGen = 0; idxMC < desc.getNumOperands(); ++idxMC, ++idxGen) {
       if (IsMemoryOperand(desc, idxMC)) {
         assert(!memAddrLower.IsValid() && !memAddrUpper.IsValid() && "Multiple memory operands");
-        unsigned operandSize = GetMemoryOperandSize(inst, idxGen);
-        memAddrLower.FromInst(inst, idxMC, 0);
-        memAddrUpper.FromInst(inst, idxMC, operandSize - 1);
+        unsigned operandSize = GetMemoryOperandSize(p_inst.inst_, idxGen);
+        memAddrLower.FromInst(p_inst.inst_, idxMC, 0);
+        memAddrUpper.FromInst(p_inst.inst_, idxMC, operandSize - 1);
         idxMC += 4;
       }
     }
   }
 
   if (!memAddrLower.IsValid() && !memAddrUpper.IsValid()) {
-    switch (inst.getOpcode()) {
+    switch (p_inst.inst_.getOpcode()) {
     case X86::INT3:
     case X86::PAUSE:
     case X86::TRAP:
       return false;
     default:
-      report_fatal_error(std::string("Instruction ") + GetName(inst) +
+      report_fatal_error(std::string("Instruction ") + GetName(p_inst.inst_) +
                          " with load/store semantics without a memory operand");
     }
   }
@@ -425,58 +409,97 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst)
     out.EmitInstruction(instUpper, STI_);
   }
 
-  out.EmitInstruction(inst, STI_);
+  EmitWithPrefixes(out, p_inst);
   out.EmitBundleUnlock();
   return true;
 }
 
-bool HadeanExpander::HandleCFI(MCStreamer &out, const MCInst &inst) {
-  switch (inst.getOpcode()) {
-    case X86::CALL64pcrel32: EmitDirectCall(out, inst);   break;
-    case X86::CALL64r:       EmitIndirectCall(out, inst); break;
+bool HadeanExpander::HandleCFI(MCStreamer &out, const PrefixInst &p_inst) {
+  switch (p_inst.inst_.getOpcode()) {
+    case X86::CALL64pcrel32: EmitDirectCall(out, p_inst);   break;
+    case X86::CALL64r:       EmitIndirectCall(out, p_inst); break;
     case X86::JMP64r:
-    case X86::TAILJMPr64:    EmitJump(out, inst);         break;
-    case X86::RETQ:          EmitReturn(out, inst);       break;
+    case X86::TAILJMPr64:    EmitJump(out, p_inst);         break;
+    case X86::RETQ:          EmitReturn(out, p_inst);       break;
     default:
       return false;
   }
   return true;
 }
 
-bool HadeanExpander::HandleSyscall(MCStreamer &out, const MCInst &inst) {
-  if (inst.getOpcode() == X86::SYSCALL) {
-    EmitSyscall(out, inst);
-    return true;
+bool HadeanExpander::HandleSyscall(MCStreamer &out, const PrefixInst &p_inst) {
+  if (p_inst.inst_.getOpcode() != X86::SYSCALL) {
+    return false;
   }
-  return false;
+
+  if (!p_inst.prefixes_.empty()) {
+    report_fatal_error("Cannot handle SYSCALL instruction with prefixes");
+  }
+
+  // We instrument the SYSCALL instruction with a 6-byte NOP. This way, elf2hoff
+  // has enough space to replace the 2-byte SYSCALL with a 5-byte direct JMP with
+  // a 32-bit offset. The NOP itself uses the R/M byte and displacement to store
+  // a magic number recognized by elf2hoff as a marker that this particular SYSCALL
+  // was instrumented by Hadean LLVM.
+
+  // LLVM instrumentation:
+  //   66 0f 1f 44 de ad   nopw   -0x53(%rsi,%rbx,8)
+  //   0f 05               syscall
+
+  static constexpr unsigned char kSyscallWithMarker[] =
+      { 0x66, 0x0f, 0x1f, 0x44, 0xde, 0xad, 0x0f, 0x05 };
+  static constexpr size_t kSyscallAlignmentInBytes = 8;
+  assert(sizeof(kSyscallWithMarker) <= kSyscallAlignmentInBytes);
+  assert(kSyscallAlignmentInBytes <= kBundleSizeInBytes);
+
+  // Create return label.
+  MCContext &context = out.getContext();
+  MCSymbol *labelReturn = context.createTempSymbol();
+
+  // Store return address in RCX.
+  static constexpr unsigned kReturnAddressReg = X86::RCX;  // clobbered by SYSCALL
+  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
+      .addReg(kReturnAddressReg)
+      .addExpr(MCSymbolRefExpr::create(labelReturn, context)), STI_);
+
+  // Emit marker and syscall. We need to emit the exact sequence of bytes
+  // so that the LLVM assembler does not optimize it.
+  out.EmitCodeAlignment(kSyscallAlignmentInBytes);
+  out.EmitBytes(StringRef(reinterpret_cast<const char*>(kSyscallWithMarker),
+                          sizeof(kSyscallWithMarker)));
+
+  // Return label
+  out.EmitCodeAlignment(kBundleSizeInBytes);
+  out.EmitLabel(labelReturn);
+  return true;
 }
 
-void HadeanExpander::EmitJump(MCStreamer &out, const MCInst& inst) {
-  assert(inst.getOpcode() == X86::HAD_JMP64r || inst.getOpcode() == X86::TAILJMPr64);
-  assert(inst.getNumOperands() == 1);
-  assert(inst.getOperand(0).isReg());
+void HadeanExpander::EmitJump(MCStreamer &out, const PrefixInst &p_inst) {
+  assert(p_inst.inst_.getOpcode() == X86::HAD_JMP64r || p_inst.inst_.getOpcode() == X86::TAILJMPr64);
+  assert(p_inst.inst_.getNumOperands() == 1);
+  assert(p_inst.inst_.getOperand(0).isReg());
   EmitSafeBranch(
-      out, inst, /* opcode */ X86::JMP64r, inst.getOperand(0).getReg(), /* alignToEnd */ false);
+      out, p_inst, /* opcode */ X86::JMP64r, p_inst.inst_.getOperand(0).getReg(), /* alignToEnd */ false);
 }
 
-void HadeanExpander::EmitDirectCall(MCStreamer &out, const MCInst &inst) {
-  assert(inst.getOpcode() == X86::CALL64pcrel32);
+void HadeanExpander::EmitDirectCall(MCStreamer &out, const PrefixInst &p_inst) {
+  assert(p_inst.inst_.getOpcode() == X86::CALL64pcrel32);
 
   out.EmitBundleLock(/* alignToEnd */ true);  // CALLs must be at the end of a bundle
-  out.EmitInstruction(inst, STI_);
+  EmitWithPrefixes(out, p_inst);
   out.EmitBundleUnlock();
 }
 
-void HadeanExpander::EmitIndirectCall(MCStreamer &out, const MCInst &inst) {
-  assert(inst.getOpcode() == X86::CALL64r);
-  assert(inst.getNumOperands() == 1);
-  assert(inst.getOperand(0).isReg());
+void HadeanExpander::EmitIndirectCall(MCStreamer &out, const PrefixInst &p_inst) {
+  assert(p_inst.inst_.getOpcode() == X86::CALL64r);
+  assert(p_inst.inst_.getNumOperands() == 1);
+  assert(p_inst.inst_.getOperand(0).isReg());
   EmitSafeBranch(
-      out, inst, /* opcode */ X86::CALL64r, inst.getOperand(0).getReg(), /* alignToEnd */ true);
+      out, p_inst, /* opcode */ X86::CALL64r, p_inst.inst_.getOperand(0).getReg(), /* alignToEnd */ true);
 }
 
-void HadeanExpander::EmitReturn(MCStreamer &out, const MCInst &inst) {
-  assert(inst.getOpcode() == X86::RETQ);
+void HadeanExpander::EmitReturn(MCStreamer &out, const PrefixInst &p_inst) {
+  assert(p_inst.inst_.getOpcode() == X86::RETQ);
   static constexpr unsigned kTempReg = X86::R11;  // register not preserved across function calls
 
   MCInstBuilder instPOP(X86::POP64r);
@@ -485,11 +508,11 @@ void HadeanExpander::EmitReturn(MCStreamer &out, const MCInst &inst) {
 
   MCInstBuilder instJMP(X86::JMP64r);
   instJMP.addReg(kTempReg);
-  EmitSafeBranch(out, instJMP, /* opcode */ X86::JMP64r, kTempReg, /* alignToEnd */ false);
+  EmitSafeBranch(out, PrefixInst(instJMP, p_inst), /* opcode */ X86::JMP64r, kTempReg, /* alignToEnd */ false);
 }
 
 void HadeanExpander::EmitSafeBranch(MCStreamer &out,
-                                    const MCInst &inst,
+                                    const PrefixInst &p_inst,
                                     unsigned opcode,
                                     unsigned targetReg,
                                     bool alignToEnd) {
@@ -555,46 +578,6 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
 
     out.EmitBundleUnlock();
   }
-}
-
-void HadeanExpander::EmitSyscall(MCStreamer &out, const MCInst &instSYSCALL) {
-  assert(instSYSCALL.getOpcode() == X86::SYSCALL);
-
-  // We instrument the SYSCALL instruction with a 6-byte NOP. This way, elf2hoff
-  // has enough space to replace the 2-byte SYSCALL with a 5-byte direct JMP with
-  // a 32-bit offset. The NOP itself uses the R/M byte and displacement to store
-  // a magic number recognized by elf2hoff as a marker that this particular SYSCALL
-  // was instrumented by Hadean LLVM.
-
-  // LLVM instrumentation:
-  //   66 0f 1f 44 de ad   nopw   -0x53(%rsi,%rbx,8)
-  //   0f 05               syscall
-
-  static constexpr unsigned char kSyscallWithMarker[] =
-      { 0x66, 0x0f, 0x1f, 0x44, 0xde, 0xad, 0x0f, 0x05 };
-  static constexpr size_t kSyscallAlignmentInBytes = 8;
-  assert(sizeof(kSyscallWithMarker) <= kSyscallAlignmentInBytes);
-  assert(kSyscallAlignmentInBytes <= kBundleSizeInBytes);
-
-  // Create return label.
-  MCContext &context = out.getContext();
-  MCSymbol *labelReturn = context.createTempSymbol();
-
-  // Store return address in RCX.
-  static constexpr unsigned kReturnAddressReg = X86::RCX;  // clobbered by SYSCALL
-  out.EmitInstruction(MCInstBuilder(X86::MOV64ri)
-      .addReg(kReturnAddressReg)
-      .addExpr(MCSymbolRefExpr::create(labelReturn, context)), STI_);
-
-  // Emit marker and syscall. We need to emit the exact sequence of bytes
-  // so that the LLVM assembler does not optimize it.
-  out.EmitCodeAlignment(kSyscallAlignmentInBytes);
-  out.EmitBytes(StringRef(reinterpret_cast<const char*>(kSyscallWithMarker),
-                          sizeof(kSyscallWithMarker)));
-
-  // Return label
-  out.EmitCodeAlignment(kBundleSizeInBytes);
-  out.EmitLabel(labelReturn);
 }
 
 }  // namespace llvm

@@ -13,13 +13,7 @@ public:
   HadeanExpander(MCSubtargetInfo& STI, std::unique_ptr<MCInstrInfo> &&II)
     : STI_(STI),
       II_(std::move(II)),
-      prefixedInstruction_(nullptr),
-      emitCompletelyRaw_(false),
-      emitHadeanJump_(false),
-      emitWithoutMPX_MemoryAccess_(false),
-      emitWithoutMPX_StackPtrUpdate_(false),
-      emitWithoutCFI_(false),
-      emitWithoutSyscall_(false) {}
+      frames_({ WorkFrame(static_cast<Stage>(kStartStage + 1)) }) {}
 
   bool expandInstruction(MCStreamer& out, const MCInst &instr);
 
@@ -39,32 +33,50 @@ private:
   MCSubtargetInfo& STI_;
   std::unique_ptr<MCInstrInfo> II_;
 
-  std::vector<unsigned> instructionPrefixes_;
-  const MCInst *prefixedInstruction_;
+  enum Stage {
+    kStartStage = 0,
+    kHadeanJumpStage,
+    kMpxMemAccessStage,
+    kMpxStackPtrStage,
+    kCfiStage,
+    kSyscallStage,
+    kEmitStage,
+  };
 
-  // Emitting instruction recursively attempts to expand it.
-  // When these values are set to true, skip re-expansion.
-  bool emitCompletelyRaw_;
-  bool emitHadeanJump_;
-  bool emitWithoutMPX_MemoryAccess_;
-  bool emitWithoutMPX_StackPtrUpdate_;
-  bool emitWithoutCFI_;
-  bool emitWithoutSyscall_;
+  typedef SmallVector<MCInst, 2> PrefixVector;
+  struct PrefixInst {
+    PrefixInst(const MCInst &inst, const PrefixVector &prefixes)
+      : inst_(inst), prefixes_(prefixes) {}
+    PrefixInst(const MCInst &inst, const PrefixInst &other)
+      : inst_(inst), prefixes_(other.prefixes_) {}
 
-  bool HandleMPX_MemoryAccess(MCStreamer &out, const MCInst &inst);
-  bool HandleMPX_StackPtrUpdate(MCStreamer &out, const MCInst &inst);
-  bool HandleCFI(MCStreamer &out, const MCInst &inst);
-  bool HandleHadeanJump(MCStreamer &out, const MCInst &inst);
-  bool HandleSyscall(MCStreamer &out, const MCInst &inst);
+    MCInst inst_;
+    PrefixVector prefixes_;
+  };
 
-  void EmitDirectCall(MCStreamer &out, const MCInst &inst);
-  void EmitIndirectCall(MCStreamer &out, const MCInst &inst);
-  void EmitJump(MCStreamer &out, const MCInst &inst);
-  void EmitReturn(MCStreamer &out, const MCInst &inst);
-  void EmitSyscall(MCStreamer &out, const MCInst &inst);
+  struct WorkFrame {
+    WorkFrame(Stage stage) : stage_(stage), prefixes_() {}
+
+    Stage stage_;
+    PrefixVector prefixes_;
+  };
+  SmallVector<WorkFrame, kEmitStage> frames_;
+
+  void EmitWithPrefixes(MCStreamer &out, const PrefixInst &inst);
+
+  bool HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &inst);
+  bool HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst &inst);
+  bool HandleCFI(MCStreamer &out, const PrefixInst &inst);
+  bool HandleHadeanJump(MCStreamer &out, const PrefixInst &inst);
+  bool HandleSyscall(MCStreamer &out, const PrefixInst &inst);
+
+  void EmitDirectCall(MCStreamer &out, const PrefixInst &inst);
+  void EmitIndirectCall(MCStreamer &out, const PrefixInst &inst);
+  void EmitJump(MCStreamer &out, const PrefixInst &inst);
+  void EmitReturn(MCStreamer &out, const PrefixInst &inst);
 
   void EmitSafeBranch(MCStreamer &out,
-                      const MCInst &inst,
+                      const PrefixInst &inst,
                       unsigned opcode,
                       unsigned targetReg,
                       bool alignToEnd);
