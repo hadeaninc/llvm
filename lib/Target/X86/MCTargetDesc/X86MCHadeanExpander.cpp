@@ -19,17 +19,17 @@ namespace llvm {
 
 cl::opt<bool> EnableCFI("hadean-cfi",
                         cl::desc("Hadean CFI assembly instrumentation"),
-                        cl::init(false));
+                        cl::init(true));
 
 cl::opt<bool> EnableMPX("hadean-mpx",
                         cl::desc("Hadean MPX assembly instrumentation"),
-                        cl::init(true));
+                        cl::init(false));
 
 // To enable, pass '-mllvm --hadean-debug-cfi' to Clang.
 // TODO: This is enaled by default for now. Disable before putting into production!.
 cl::opt<bool> DebugCFI("hadean-debug-cfi",
                        cl::desc("Debug instrumentation for Hadean CFI"),
-                       cl::init(true));
+                       cl::init(false));
 
 extern const char X86InstrNameData[];
 extern const unsigned X86InstrNameIndices[];
@@ -210,11 +210,6 @@ static inline unsigned GetMemoryOperandSize(const MCInst &inst, unsigned opIdxGe
 bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
   assert(!frames_.empty());
 
-  // for (size_t i = 0; i < frames_.size(); ++i) llvm::errs() << " ";
-  // llvm::errs() << "instr = ";
-  // inst.print(llvm::errs());
-  // llvm::errs() << "\n";
-
   WorkFrame &current = frames_.back();
   if (current.stage_ == kEmitStage) {
     return false;
@@ -264,7 +259,9 @@ bool HadeanExpander::expandInstruction(MCStreamer &out, const MCInst &inst) {
       if (p_inst.prefixes_.empty()) {
         return false;
       } else {
+        frames_.push_back(WorkFrame(kEmitStage));
         EmitWithPrefixes(out, p_inst);
+        frames_.pop_back();
         return true;
       }
     }
@@ -314,6 +311,10 @@ bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const PrefixInst &p_inst)
 }
 
 bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst &p_inst) {
+  if (!EnableMPX) {
+    return false;
+  }
+
   const MCInstrDesc &desc = GetDesc(p_inst.inst_);
 
   bool foundStackPtrDef = false;
@@ -350,6 +351,10 @@ bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst 
 }
 
 bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p_inst) {
+  if (!EnableMPX) {
+    return false;
+  }
+
   const MCInstrDesc &desc = GetDesc(p_inst.inst_);
   if (!desc.mayLoad() && !desc.mayStore()) {
     return false;
@@ -415,6 +420,10 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p
 }
 
 bool HadeanExpander::HandleCFI(MCStreamer &out, const PrefixInst &p_inst) {
+  if (!EnableCFI) {
+    return false;
+  }
+
   switch (p_inst.inst_.getOpcode()) {
     case X86::CALL64pcrel32: EmitDirectCall(out, p_inst);   break;
     case X86::CALL64r:       EmitIndirectCall(out, p_inst); break;
