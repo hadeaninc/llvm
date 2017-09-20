@@ -68,6 +68,10 @@ bool X86HadeanRewriteControl::rewriteMI(MachineBasicBlock &MBB, MachineInstr &MI
   switch (MI.getOpcode()) {
    case X86::CALL64m:      newOpcode = X86::CALL64r;      regClass = &X86::GR64RegClass;    break;
    case X86::HAD_JMP64m:   newOpcode = X86::HAD_JMP64r;   regClass = &X86::GR64RegClass;    break;
+   case X86::POP16rmm:     newOpcode = X86::POP16r;       regClass = &X86::GR64RegClass;    break;
+   case X86::POP64rmm:     newOpcode = X86::POP64r;       regClass = &X86::GR64RegClass;    break;
+   case X86::PUSH16rmm:    newOpcode = X86::PUSH16r;      regClass = &X86::GR64RegClass;    break;
+   case X86::PUSH64rmm:    newOpcode = X86::PUSH64r;      regClass = &X86::GR64RegClass;    break;
    case X86::TCRETURNmi64: newOpcode = X86::TCRETURNri64; regClass = &X86::GR64_TCRegClass; break;
    default:                return false;
   }
