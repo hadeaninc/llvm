@@ -25,6 +25,10 @@ cl::opt<bool> EnableMPX("hadean-mpx",
                         cl::desc("Hadean MPX assembly instrumentation"),
                         cl::init(false));
 
+cl::opt<bool> EnableMPXStackPtrOpt("hadean-mpx-stackptropt",
+                                   cl::desc("Hadean MPX stackptr optimization"),
+                                   cl::init(false));
+
 // To enable, pass '-mllvm --hadean-debug-cfi' to Clang.
 // TODO: This is enaled by default for now. Disable before putting into production!.
 cl::opt<bool> DebugCFI("hadean-debug-cfi",
@@ -311,7 +315,7 @@ bool HadeanExpander::HandleHadeanJump(MCStreamer &out, const PrefixInst &p_inst)
 }
 
 bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst &p_inst) {
-  if (!EnableMPX) {
+  if (!EnableMPX || !EnableMPXStackPtrOpt) {
     return false;
   }
 
@@ -369,8 +373,14 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p
   if (IsPush(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
     memAddrLower.FromStackPtr(-size);
+    if (!EnableMPXStackPtrOpt) {
+      memAddrUpper.FromStackPtr(-1);
+    }
   } else if (IsPop(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
+    if (!EnableMPXStackPtrOpt) {
+      memAddrLower.FromStackPtr(0); // TODO: optimize into BNDCL64rr
+    }
     memAddrUpper.FromStackPtr(size - 1);
   } else {
     boundsReg = desc.mayStore() ? kReadWriteBoundsReg : kReadOnlyBoundsReg;
