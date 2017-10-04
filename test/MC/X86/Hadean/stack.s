@@ -47,6 +47,20 @@ popq %rdx
 // CHECK-OPT:      bndcu  7(%rsp), %bnd3
 // CHECK-OPT-NEXT: popq   %rdx
 
+// ====== ADD IMMEDIATE TO RSP  ======
+
+addq $35, %rsp
+
+// CHECK-OPT:      bndcu  34(%rsp), %bnd3
+// CHECK-OPT-NEXT: addq   $35, %rsp
+
+// ====== SUBTRACT IMMEDIATE FROM RSP  ======
+
+subq $13, %rsp
+
+// CHECK-OPT:      bndcl  -13(%rsp), %bnd3
+// CHECK-OPT-NEXT: subq   $13, %rsp
+
 // ====== SET SPL REGISTER ======
 
 andb $42, %spl

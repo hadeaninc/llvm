@@ -160,6 +160,24 @@ static inline bool IsPush(const MCInst &inst, /* out */ int64_t *outSize = nullp
   return true;
 }
 
+static inline bool IsSubRSP(const MCInst &inst, /* out */ int64_t *outSize = nullptr) {
+  // Only support full 64-bit RSP (as opposed to ESP, SPL, etc) for
+  // integer overflow reasons.
+  if (EnableMPXStackPtrOpt) {
+    if ((inst.getOpcode() == X86::SUB64ri8) || (inst.getOpcode() == X86::SUB64ri32)) {
+      if (inst.getOperand(0).getReg() == X86::RSP) {
+        if (inst.getOperand(1).getReg() == X86::RSP) {
+          if (outSize != nullptr) {
+            *outSize = inst.getOperand(2).getImm();
+          }
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 static inline bool IsPop(const MCInst &inst, /* out */ int64_t *outSize = nullptr) {
   int64_t size;
   switch (inst.getOpcode()) {
@@ -183,6 +201,24 @@ static inline bool IsPop(const MCInst &inst, /* out */ int64_t *outSize = nullpt
     *outSize = size;
   }
   return true;
+}
+
+static inline bool IsAddRSP(const MCInst &inst, /* out */ int64_t *outSize = nullptr) {
+  // Only support full 64-bit RSP (as opposed to ESP, SPL, etc) for
+  // integer overflow reasons.
+  if (EnableMPXStackPtrOpt) {
+    if ((inst.getOpcode() == X86::ADD64ri8) || (inst.getOpcode() == X86::ADD64ri32)) {
+      if (inst.getOperand(0).getReg() == X86::RSP) {
+        if (inst.getOperand(1).getReg() == X86::RSP) {
+          if (outSize != nullptr) {
+            *outSize = inst.getOperand(2).getImm();
+          }
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 static inline unsigned GetMemoryOperandSize(const MCInst &inst, unsigned opIdxGen) {
@@ -319,6 +355,10 @@ bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst 
     return false;
   }
 
+  if (IsAddRSP(p_inst.inst_, nullptr) || IsSubRSP(p_inst.inst_, nullptr)) {
+    return false;
+  }
+
   const MCInstrDesc &desc = GetDesc(p_inst.inst_);
 
   bool foundStackPtrDef = false;
@@ -329,31 +369,31 @@ bool HadeanExpander::HandleMPX_StackPtrUpdate(MCStreamer &out, const PrefixInst 
     }
   }
 
-  if (foundStackPtrDef) {
-    // Emit the original instruction, allowing it to update RSP, then check
-    // the value is within bounds.
-
-    out.EmitBundleLock(/* alignToEnd */ false);
-
-    EmitWithPrefixes(out, p_inst);
-
-    MCInstBuilder instLower(X86::BNDCL64rr);
-    instLower.addReg(kStackOpBoundsReg);
-    instLower.addReg(X86::RSP);
-    out.EmitInstruction(instLower, STI_);
-
-    MCInstBuilder instUpper(X86::BNDCU64rm);
-    instUpper.addReg(kStackOpBoundsReg);
-    MemoryOperand memAddrUpper;
-    memAddrUpper.FromStackPtr(-1);
-    memAddrUpper.AppendTo(instUpper);
-    out.EmitInstruction(instUpper, STI_);
-
-    out.EmitBundleUnlock();
-    return true;
-  } else {
+  if (!foundStackPtrDef) {
     return false;
   }
+
+  // Emit the original instruction, allowing it to update RSP, then check
+  // the value is within bounds.
+
+  out.EmitBundleLock(/* alignToEnd */ false);
+
+  EmitWithPrefixes(out, p_inst);
+
+  MCInstBuilder instLower(X86::BNDCL64rr);
+  instLower.addReg(kStackOpBoundsReg);
+  instLower.addReg(X86::RSP);
+  out.EmitInstruction(instLower, STI_);
+
+  MCInstBuilder instUpper(X86::BNDCU64rm);
+  instUpper.addReg(kStackOpBoundsReg);
+  MemoryOperand memAddrUpper;
+  memAddrUpper.FromStackPtr(-1);
+  memAddrUpper.AppendTo(instUpper);
+  out.EmitInstruction(instUpper, STI_);
+
+  out.EmitBundleUnlock();
+  return true;
 }
 
 bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p_inst) {
@@ -361,27 +401,25 @@ bool HadeanExpander::HandleMPX_MemoryAccess(MCStreamer &out, const PrefixInst &p
     return false;
   }
 
-  const MCInstrDesc &desc = GetDesc(p_inst.inst_);
-  if (!desc.mayLoad() && !desc.mayStore()) {
-    return false;
-  }
-
   int64_t size;
   unsigned boundsReg;
   MemoryOperand memAddrLower, memAddrUpper;
+  const MCInstrDesc &desc = GetDesc(p_inst.inst_);
 
-  if (IsPush(p_inst.inst_, &size)) {
+  if (IsPush(p_inst.inst_, &size) || IsSubRSP(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
     memAddrLower.FromStackPtr(-size);
     if (!EnableMPXStackPtrOpt) {
       memAddrUpper.FromStackPtr(-1);
     }
-  } else if (IsPop(p_inst.inst_, &size)) {
+  } else if (IsPop(p_inst.inst_, &size) || IsAddRSP(p_inst.inst_, &size)) {
     boundsReg = kStackOpBoundsReg;
     if (!EnableMPXStackPtrOpt) {
       memAddrLower.FromStackPtr(0); // TODO: optimize into BNDCL64rr
     }
     memAddrUpper.FromStackPtr(size - 1);
+  } else if (!desc.mayLoad() && !desc.mayStore()) {
+    return false;
   } else {
     boundsReg = desc.mayStore() ? kReadWriteBoundsReg : kReadOnlyBoundsReg;
     // Iterate over all operands. Because memory operands are expanded to five
