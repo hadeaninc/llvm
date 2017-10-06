@@ -525,43 +525,45 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
                                     unsigned opcode,
                                     unsigned targetReg,
                                     bool alignToEnd) {
+  out.EmitBundleLock(alignToEnd);
+
   if (DebugCFI) {
-    // Do an AND $31 on `targetReg`. Trap if the bottom five bits are not zero.
     MCContext &context = out.getContext();
     MCSymbol *labelFine = context.createTempSymbol();
 
-    // Backup the target register.
-    MCInstBuilder instPUSH(X86::PUSH64r);
-    instPUSH.addReg(targetReg);
-    out.EmitInstruction(instPUSH, STI_);
+    // XOR the target register with the code base to compare its bits.
+    MCInstBuilder instXOR1(X86::XOR64rr);
+    instXOR1.addReg(targetReg);
+    instXOR1.addReg(targetReg);
+    instXOR1.addReg(kCodeBaseRegister);
+    out.EmitInstruction(instXOR1, STI_);
 
-    // Mask out all but the bottom bits that should be zero.
-    MCInstBuilder instAND(X86::AND64ri32);
-    instAND.addReg(targetReg);
-    instAND.addReg(targetReg);
-    instAND.addImm(kBundleSizeInBytes - 1);
-    out.EmitInstruction(instAND, STI_);
+    // Test that all the bottom bits are zero. This will be replaced
+    // by elf2hoff with a mask of the bottom and top bits.
+    MCInstBuilder instTEST(X86::TEST64ri32);
+    instTEST.addReg(targetReg);
+    instTEST.addImm(kBundleSizeInBytes - 1);
+    out.EmitInstruction(instTEST, STI_);
 
     // Skip over the TRAP if the zero flag is set.
-    MCInstBuilder instSKIP(X86::JE_4);
+    MCInstBuilder instSKIP(X86::JE_1);
     instSKIP.addExpr(MCSymbolRefExpr::create(labelFine, context));
     out.EmitInstruction(instSKIP, STI_);
 
-    // If not zero, trap.
+    // If bits not zero, trap.
     out.EmitInstruction(MCInstBuilder(X86::TRAP), STI_);
 
     // Target of skipping the TRAP instruction.
     out.EmitLabel(labelFine);
 
-    // Restore the clobbered target register.
-    MCInstBuilder instPOP(X86::POP64r);
-    instPOP.addReg(targetReg);
-    out.EmitInstruction(instPOP, STI_);
-  }
-
-  {
-    out.EmitBundleLock(alignToEnd);
-
+    // XOR the target register again with the code base to
+    // restore its original value.
+    MCInstBuilder instXOR2(X86::XOR64rr);
+    instXOR2.addReg(targetReg);
+    instXOR2.addReg(targetReg);
+    instXOR2.addReg(kCodeBaseRegister);
+    out.EmitInstruction(instXOR2, STI_);
+  } else {
     // Mask out bottom bits of the pointer. The immediate will be replaced
     // by elf2hoff to mask out the top bits as well.
     MCInstBuilder instAND(X86::AND64ri32);
@@ -579,14 +581,14 @@ void HadeanExpander::EmitSafeBranch(MCStreamer &out,
     instLEA.addImm(0);
     instLEA.addReg(0);
     out.EmitInstruction(instLEA, STI_);
-
-    // Emit the branch instruction
-    MCInstBuilder instBranch(opcode);
-    instBranch.addReg(targetReg);
-    out.EmitInstruction(instBranch, STI_);
-
-    out.EmitBundleUnlock();
   }
+
+  // Emit the branch instruction. Must be the last in case it is a CALL.
+  MCInstBuilder instBranch(opcode);
+  instBranch.addReg(targetReg);
+  out.EmitInstruction(instBranch, STI_);
+
+  out.EmitBundleUnlock();
 }
 
 }  // namespace llvm
